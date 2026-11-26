@@ -217,8 +217,6 @@ def reviews(page:int=Query(1,ge=1),page_size:int=Query(25,ge=1,le=100),sort:str=
 
 @app.post("/api/scrape/trigger",status_code=202)
 def trigger_scrape(mode:Literal["incremental","full"]="incremental"):
-    if os.getenv("AUTO_SCRAPE","true").lower() in {"0","false","no"}:
-        raise HTTPException(409,"Collection is disabled on this deployment (AUTO_SCRAPE=false). Run the scraper locally to update the dataset.")
     if not _start_scrape_process(mode): raise HTTPException(409,"A scrape is already running")
     return {"status":"started","pid":_scrape_process.pid}
 
