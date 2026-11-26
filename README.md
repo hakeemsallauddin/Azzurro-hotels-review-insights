@@ -60,7 +60,20 @@ Do not share `data/booking-state.json`, which may contain session cookies. Revie
 
 ### Architecture and collection method
 
-Playwright loads the four public Booking.com property pages and collects review records exposed in page JSON responses or rendered review cards, following available pagination. FastAPI serves analytics, paginated reviews, collection status, and corrective actions. SQLite stores reviews and run history; React/Vite presents the Review Insights, Operations & Actions, and Automation & Impact workspaces. The scraper commits rows as it progresses and uses unique source IDs, with a deterministic content hash fallback, to avoid duplicate inserts.
+```mermaid
+flowchart LR
+    B[Booking.com property pages] -->|HTML, review cards, page JSON| S[Python + Playwright scraper]
+    S -->|deduplicated reviews and run history| DB[(SQLite database)]
+    DB --> API[Python + FastAPI REST API]
+    API --> UI[React dashboard + Vite]
+    UI --> V1[Review Insights]
+    UI --> V2[Operations & Actions]
+    UI --> V3[Automation & Impact]
+    API --> CL[Analytics and keyword classification]
+    CL --> API
+```
+
+**Stack:** Python, Playwright, FastAPI, SQLite, React, Vite, JavaScript, and CSS. The scraper commits rows as it progresses and uses unique source IDs, with a deterministic content hash fallback, to avoid duplicate inserts. It collects review records exposed in page JSON responses or rendered review cards and follows available pagination.
 
 Collection completeness depends on the content Booking.com exposes to the current session. The source site may change its page structure, restrict automated access, or show verification; inaccessible reviews cannot be collected by this application. The dashboard compares unique stored reviews with the latest observed listing total when available and reports gaps and run errors. It does not claim completeness from a matching count alone. The dated `data/booking-source-snapshot.json` is historical context, not a live total. At README preparation, the local database had 9,180 rows; the database itself is not included in the repository.
 
