@@ -14,15 +14,21 @@ function ago(hours) {
   return `${Math.floor(hours / 24)}d ago`;
 }
 
+function isVerificationError(error = '') {
+  return /verification appeared|showed a verification|human verification|captcha|security check|unusual traffic|verify\s+(?:that\s+)?(?:you(?:'|’)re|you are)\s+not\s+a\s+robot|verification was not cleared/i.test(error);
+}
+
 function Status({ status, error = '' }) {
   const normalized = status || 'unknown';
-  const label = normalized === 'completed_with_errors' && /verification|anti-bot|captcha/i.test(error) ? 'Verification check' : normalized.replaceAll('_', ' ');
+  const label = normalized === 'completed_with_errors' && isVerificationError(error) ? 'Verification check' : normalized.replaceAll('_', ' ');
   return <span className={`run-status ${normalized}`}>{label}</span>;
 }
 
 function attemptMessage(error) {
   if (!error) return '';
-  if (/verification|anti-bot|captcha/i.test(error)) return 'Booking.com verification appeared; no reviews were collected.';
+  if (/ERR_NAME_NOT_RESOLVED|ENOTFOUND|EAI_AGAIN|DNS_PROBE/i.test(error)) return 'DNS lookup failed: the scraper could not resolve Booking.com from its runtime, so no reviews were collected in this attempt.';
+  if (/ETIMEDOUT|ERR_CONNECTION_TIMED_OUT|ECONNRESET|ERR_CONNECTION_REFUSED/i.test(error)) return 'The scraper could not establish a connection to Booking.com, so no reviews were collected in this attempt.';
+  if (isVerificationError(error)) return 'Booking.com presented a verification check; no reviews were collected in this attempt.';
   return error;
 }
 
@@ -54,7 +60,16 @@ export default function Automation({ data, sync, loading, impactWindow, onImpact
   const healthyCount = collection.healthy_count ?? derivedHealthyCount;
   const propertyCount = collection.property_count ?? properties.length;
   const collectionStatus = collection.status || (properties.length && derivedHealthyCount === properties.length ? 'healthy' : 'attention');
-  const latestBlocked = properties.some((property) => property.latest_attempt_error);
+  const latestAttemptErrors = properties.map((property) => property.latest_attempt_error).filter(Boolean);
+  const latestAttemptErrorText = latestAttemptErrors.join('\n');
+  const latestAttemptHasIssues = latestAttemptErrors.length > 0;
+  const latestAttemptSummary = /ERR_NAME_NOT_RESOLVED|ENOTFOUND|EAI_AGAIN|DNS_PROBE/i.test(latestAttemptErrorText)
+    ? 'The scraper could not resolve Booking.com (DNS lookup failure) during the latest attempt.'
+    : /ETIMEDOUT|ERR_CONNECTION_TIMED_OUT|ECONNRESET|ERR_CONNECTION_REFUSED/i.test(latestAttemptErrorText)
+      ? 'The scraper could not connect to Booking.com during the latest attempt.'
+      : isVerificationError(latestAttemptErrorText)
+        ? 'Booking.com presented a verification check during the latest attempt.'
+        : 'The latest collection attempt reported an error.';
   const activeRuns = recentRuns.filter((run) => run.status === 'running').length;
   const historyErrors = errorCount({ recent_runs: recentRuns.slice(0, 5) });
   const impactAvailable = Boolean(data.impact_summary);
@@ -68,7 +83,7 @@ export default function Automation({ data, sync, loading, impactWindow, onImpact
     <section className={`collection-monitor ${overallStatus}`}>
       <div className="monitor-heading"><div className="monitor-title">{overallStatus === 'healthy' ? <CheckCircle2 size={17} /> : <CircleAlert size={17} />}<b>Collection Monitor: {healthyCount} of {propertyCount} properties healthy</b></div><span>Freshness uses each property's last successful collection</span></div>
       <div className="monitor-property-list">{properties.map((property) => <span className={`monitor-property ${property.health_status}`} key={property.property}><i />{property.name}: {property.review_count.toLocaleString()}{property.booking_total_reviews == null ? ' stored' : `/${property.booking_total_reviews.toLocaleString()}`} · {ago(property.success_age_hours)}</span>)}</div>
-      {latestBlocked && <div className="monitor-note"><AlertTriangle size={15} /><span><b>Booking.com showed a verification check during the latest attempt.</b> {derivedHealthyCount === properties.length ? 'The previous successful collection is still within the 24-hour freshness window. ' : ''}No new reviews were collected in that attempt; property-specific details are available in the run history.</span></div>}
+      {latestAttemptHasIssues && <div className="monitor-note"><AlertTriangle size={15} /><span><b>{latestAttemptSummary}</b> {derivedHealthyCount === properties.length ? 'The previous successful collection is still within the 24-hour freshness window, so stored reviews remain available. ' : ''}No new reviews were collected in that attempt; property-specific details are available in the run history.</span></div>}
     </section>
 
     <section className="ops-summary impact-summary"><article className="summary-card tone-blue"><span><Database size={14} /> REVIEWS STORED</span><strong>{(data.review_count || 0).toLocaleString()}</strong><small>Rows in the local review database</small></article><article className="summary-card"><span>RECENT 30-DAY REVIEWS</span><strong>{(current.count || 0).toLocaleString()}</strong><small>{current.start} to {current.end}</small></article><article className={`summary-card ${ratingChange == null ? '' : ratingChange >= 0 ? 'tone-green' : 'tone-red'}`}><span>AVERAGE RATING CHANGE</span><strong>{ratingChange == null ? '—' : `${ratingChange > 0 ? '+' : ''}${Number(ratingChange).toFixed(2)}`}</strong><small>{previous.average ?? '—'} prior · {current.average ?? '—'} recent</small></article><article className={`summary-card ${negativeChange == null ? '' : negativeChange <= 0 ? 'tone-green' : 'tone-red'}`}><span>NEGATIVE RATE CHANGE</span><strong>{negativeChange == null ? '—' : `${negativeChange > 0 ? '+' : ''}${Number(negativeChange).toFixed(1)}%`}</strong><small>{previous.negative_rate ?? 0}% prior · {current.negative_rate ?? 0}% recent</small></article></section>
