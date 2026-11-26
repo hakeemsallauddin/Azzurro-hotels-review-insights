@@ -1,6 +1,6 @@
 # Azzurro Hotels — Booking.com Review Insights
 
-Operations dashboard for collecting and understanding guest reviews across Olympic Hotel Paddington, Potts Point, Central Sydney, and Darling Harbour. The application stores collected reviews in SQLite and provides a searchable review feed, property and date filters, weekly rating comparisons, positive and negative trends, operational topic insights, corrective action tracking, and collection monitoring.
+Operations dashboard for collecting and understanding guest reviews across Olympic Hotel Paddington, Potts Point, Central Sydney, and Darling Harbour. The application stores collected reviews in SQLite (Turso when hosted) and provides a searchable review feed, property and date filters, weekly rating comparisons, positive and negative trends, operational topic insights, corrective action tracking, and collection monitoring.
 
 ## 1. Source code
 
@@ -65,7 +65,7 @@ Do not share `data/booking-state.json`, which may contain session cookies. Revie
 ```mermaid
 flowchart LR
     B[Booking.com property pages] -->|HTML, review cards, page JSON| S[Python + Playwright scraper]
-    S -->|deduplicated reviews and run history| DB[(SQLite database)]
+    S -->|deduplicated reviews and run history| DB[(SQLite / Turso database)]
     DB --> API[Python + FastAPI REST API]
     API --> UI[React dashboard + Vite]
     UI --> V1[Review Insights]
