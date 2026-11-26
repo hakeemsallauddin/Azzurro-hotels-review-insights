@@ -95,3 +95,99 @@
 .scrape-warning{display:flex;align-items:flex-start;gap:8px}
 @media(max-width:1080px){.issue-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.ops-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.form-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:760px){.sidebar{display:flex;position:sticky;inset:auto;width:auto;height:auto;padding:13px 14px;background:#fff;border-right:0;border-bottom:1px solid #e9edf3}.brand{padding:0 5px 12px}.side-label,.side-foot{display:none}.side-nav{flex-direction:row;overflow:auto;gap:5px}.nav{height:38px;min-width:max-content;justify-content:center;padding:0 9px;font-size:11px}.nav-count{margin-left:0}.main{margin:0;padding:18px 14px}.view-meta{margin-top:-5px}.page-intro{align-items:flex-start}.page-intro h2{font-size:18px}.page-intro .primary{padding:8px;font-size:10px}.ops-summary{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.summary-card{min-height:99px;padding:12px}.issue-grid{grid-template-columns:1fr}.form-grid{grid-template-columns:1fr}.span-two{grid-column:auto}.action-row{grid-template-columns:1fr;gap:8px}.status-control{max-width:170px}.coverage-row{grid-template-columns:30px minmax(0,1fr) auto}.coverage-last{grid-column:2;grid-row:2}.coverage-row>.run-status{grid-column:3;grid-row:1}.coverage-panel .panel-head{align-items:flex-start}.impact-summary .summary-card>strong{font-size:20px}.run-table{min-width:610px}.charts{grid-template-columns:1fr}.review-controls>select{flex:1}.query-note{line-height:1.5}}
+
+/* Readability pass (2026-11-26): larger, neater data text across the dashboard.
+   The base styles used 8-11px for most data labels, which read too small on
+   projectors and recordings; this block raises data text by ~2px throughout
+   while keeping the layout and hierarchy unchanged. */
+body{font-size:14px}
+.brand b{font-size:15px}.brand small{font-size:10px}
+.side-label,.eyebrow{font-size:11px}
+.nav{font-size:14px}.side-foot{font-size:11px}
+.top h1{font-size:28px}
+.top p,.section-head p,.panel-head p,.review-head p{font-size:13px}
+.status-pill{font-size:12px}.sync-label{font-size:11px}
+.primary{font-size:12px}
+.filters label span{font-size:10px}
+.filters select,.review-controls select{font-size:12px}
+.filter-note{font-size:11px}
+.kpi-top{font-size:11px}.kpi>strong{font-size:28px}.kpi>small{font-size:12px}
+.insight b{font-size:13px}.insight p{font-size:12px}.period{font-size:10px}
+.section-head h2,.panel-head h2,.review-head h2{font-size:16px}
+.muted{font-size:12px}
+.property-title{font-size:12px}
+.property-rating strong{font-size:24px}.property-rating>span{font-size:11px}
+.property-bottom{font-size:11px}
+.property-score-pair small,.property-signals small{font-size:10px}
+.property-score-pair strong{font-size:21px}
+.property-score-pair strong em{font-size:11px}
+.property-score-pair span{font-size:10px}
+.property-signals b{font-size:10px}
+.export{font-size:11px}
+.search input{font-size:13px}
+.topic-clear{font-size:11px}
+.score{font-size:16px}.score small{font-size:9px}
+.review-meta{font-size:12px}.review-meta b{font-size:13px}
+.reviewer{font-size:12px}
+.sentiment{font-size:10px}
+.review h3{font-size:14px}
+.review-text p{font-size:13px;line-height:1.6}
+.tags button{font-size:11px}
+.reply{font-size:12px}
+.empty{font-size:12px}.empty b{font-size:13px}
+.pagination{font-size:12px}
+footer{font-size:11px}
+.page-intro h2{font-size:23px}.page-intro p{font-size:13px}
+.summary-card>span{font-size:11px}.summary-card>strong{font-size:28px}.summary-card>small{font-size:12px}
+.window-pill{font-size:11px}
+.severity{font-size:10px}
+.issue-card h3,.praise-card h3{font-size:16px}
+.issue-card>p,.praise-card>p{font-size:12px;line-height:1.6}
+.issue-metrics span{font-size:10px}.issue-metrics b{font-size:15px}
+.issue-properties>span{font-size:10px}
+.issue-examples b,.issue-examples span,.praise-examples b,.praise-examples span{font-size:11px}
+.text-action{font-size:11px}
+.form-heading p{font-size:12px}
+.form-grid label{font-size:11px}
+.form-grid input,.form-grid select,.form-grid textarea,.status-control select{font-size:12px}
+.secondary-button{font-size:11px}
+.action-priority{font-size:11px}
+.action-main h3{font-size:14px}.action-main p{font-size:12px}
+.action-meta span{font-size:10px}
+.status-control{font-size:11px}
+.coverage-summary{font-size:13px}
+.coverage-card{padding:14px}
+.coverage-card-head>b{font-size:13px}
+.coverage-counts{font-size:12px}
+.coverage-detail{font-size:11px}
+.coverage-run-state{font-size:11px}
+.coverage-caveat{font-size:11px;line-height:1.6}
+.run-status{font-size:10px}
+.collection-monitor .monitor-title{font-size:13px}
+.monitor-heading>span{font-size:11px}
+.monitor-property{font-size:10px}
+.monitor-note{font-size:11px}
+.run-history-summary{font-size:11px}
+.run-table{font-size:12px}.run-table th{font-size:11px}
+.run-error{font-size:11px}
+.run-error-detail summary{font-size:10px}
+.impact-stat-grid>article>span{font-size:10px}
+.impact-stat-grid>article>b{font-size:23px}
+.impact-stat-grid>article>small{font-size:10px}
+.impact-action-title b{font-size:12px}.impact-action-title small{font-size:10px}
+.impact-comparison>span{font-size:10px}.impact-comparison>span b{font-size:11px}
+.impact-comparison>small{font-size:10px}
+.impact-empty b{font-size:12px}.impact-empty span{font-size:11px}
+.impact-windows button{font-size:11px}
+.takeaways-heading h2{font-size:17px}.takeaways-heading p{font-size:12px}
+.takeaway-card h3{font-size:13px}.takeaway-card p{font-size:12px}
+.takeaway-card button{font-size:11px}
+.takeaway-item{font-size:11px}
+.view-meta{font-size:12px}
+.query-note{font-size:11px}
+.count-badge{font-size:11px}
+.listing-link{font-size:11px}
+.loading-strip{font-size:12px}
+.impact-note p{font-size:12px}
+.coverage-property b{font-size:13px}.coverage-property span,.coverage-last span{font-size:12px}
+.coverage-last small{font-size:11px}
