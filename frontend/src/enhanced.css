@@ -212,3 +212,69 @@ footer{font-size:11px}
 .property-signals b{font-size:12px}
 .property-bottom{font-size:13px}
 .listing-link{font-size:13px}
+
+/* Readability pass 3 (2026-11-26): every remaining small data size in every
+   component raised decisively — nothing under 12px for data text. */
+.side-label,.eyebrow{font-size:12px}
+.side-foot{font-size:12px}.sync-label{font-size:12px}.filter-note{font-size:13px}
+.status-pill{font-size:13px}.primary{font-size:13px}
+.kpi-top{font-size:12px}.kpi>small{font-size:13px}
+.insight p{font-size:13px}.period{font-size:11px}
+footer{font-size:12px}
+.filters label span{font-size:12px}
+.filters select,.review-controls select{font-size:13px}
+.property-title{font-size:15px}
+.property-score-pair small{font-size:13px}
+.property-score-pair span{font-size:13px}
+.property-signals small{font-size:13px}.property-signals b{font-size:13px}
+.property-bottom{font-size:14px}
+.listing-link{font-size:14px}
+.review-meta{font-size:13px}.review-meta b{font-size:14px}
+.reviewer{font-size:13px}.sentiment{font-size:11px}
+.review h3{font-size:15px}.review-text p{font-size:14px}
+.tags button{font-size:12px}.reply{font-size:13px}
+.score small{font-size:10px}
+.pagination{font-size:13px}.export{font-size:13px}.topic-clear{font-size:13px}
+.search input{font-size:14px}
+.empty{font-size:13px}.empty b{font-size:14px}
+.summary-card>span{font-size:12px}.summary-card>small{font-size:13px}
+.issue-card>p,.praise-card>p{font-size:13px}
+.issue-metrics span{font-size:12px}.issue-metrics b{font-size:17px}
+.issue-properties>span{font-size:12px}
+.issue-examples b,.issue-examples span,.praise-examples b,.praise-examples span{font-size:13px}
+.text-action{font-size:13px}
+.severity{font-size:11px}.window-pill{font-size:12px}
+.form-grid label{font-size:12px}
+.form-grid input,.form-grid select,.form-grid textarea,.status-control select{font-size:13px}
+.secondary-button{font-size:13px}
+.action-priority{font-size:12px}.action-main p{font-size:13px}
+.action-meta span{font-size:12px}.status-control{font-size:12px}
+.coverage-summary{font-size:14px}
+.coverage-counts{font-size:13px}
+.coverage-detail{font-size:13px}
+.coverage-run-state{font-size:13px}
+.coverage-caveat{font-size:12px}
+.run-status{font-size:12px}
+.monitor-heading>span{font-size:12px}
+.monitor-property{font-size:12px}
+.monitor-note{font-size:13px}
+.run-history-summary{font-size:13px}
+.run-table{font-size:13px}.run-table th{font-size:12px}
+.run-error{font-size:12px}.run-error-detail summary{font-size:11px}
+.run-error-detail pre{font-size:10px;line-height:1.5}
+.impact-stat-grid>article>span{font-size:12px}
+.impact-stat-grid>article>small{font-size:12px}
+.impact-comparison>span{font-size:12px}.impact-comparison>span b{font-size:12px}
+.impact-comparison>small{font-size:12px}
+.impact-action-title b{font-size:13px}.impact-action-title small{font-size:12px}
+.impact-empty span{font-size:12px}
+.impact-windows button{font-size:12px}
+.coverage-property span,.coverage-last span{font-size:13px}
+.coverage-last small{font-size:12px}
+.takeaway-item{font-size:14px}
+.takeaways-heading small{font-size:12px}
+.view-meta{font-size:13px}.query-note{font-size:13px}
+.count-badge{font-size:12px}.loading-strip{font-size:13px}
+.impact-note p{font-size:13px}
+.nav-count{font-size:11px}
+.scrape-warning{font-size:13px}.scrape-warning li{font-size:12px}
