@@ -191,3 +191,24 @@ footer{font-size:11px}
 .impact-note p{font-size:12px}
 .coverage-property b{font-size:13px}.coverage-property span,.coverage-last span{font-size:12px}
 .coverage-last small{font-size:11px}
+
+/* Readability pass 2 (2026-11-26): the zones called out on the Review Insights
+   page — Operational Key Takeaways and the Property performance cards — get a
+   further step up so their data reads clearly at a glance. */
+.takeaways-heading{font-size:12px}
+.takeaways-heading small{font-size:11px}
+.takeaway-item{font-size:13px;line-height:1.55;padding:9px 11px;min-height:38px}
+.takeaway-bullet{margin-top:6px}
+.section-head h2{font-size:18px}
+.section-head p{font-size:14px}
+.muted{font-size:13px}
+.property-card{padding:16px}
+.property-title{font-size:14px}
+.property-score-pair small{font-size:12px}
+.property-score-pair strong{font-size:26px}
+.property-score-pair strong em{font-size:13px}
+.property-score-pair span{font-size:12px}
+.property-signals small{font-size:12px}
+.property-signals b{font-size:12px}
+.property-bottom{font-size:13px}
+.listing-link{font-size:13px}
