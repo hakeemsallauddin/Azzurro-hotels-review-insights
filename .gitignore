@@ -20,3 +20,4 @@ data/*state*.json
 playwright/.cache/
 .playwright/
 .turso-env
+.totals-last-check
