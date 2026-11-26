@@ -100,17 +100,30 @@ class _TursoConnection:
     def rollback(self):
         pass
     def close(self):
-        self._client.close()
+        pass  # the client is shared process-wide; never close it per query
     def __enter__(self):
         return self
     def __exit__(self, exc_type, exc, tb):
         return False
 
+import threading
+_turso_client = None
+_turso_client_lock = threading.Lock()
+
+def _shared_turso_client():
+    # One client per process: creating a libsql client per query made the
+    # hosted API slow (a fresh connection setup for every single statement).
+    global _turso_client
+    if _turso_client is None:
+        with _turso_client_lock:
+            if _turso_client is None:
+                import libsql_client
+                _turso_client = libsql_client.create_client_sync(url=TURSO_URL, auth_token=TURSO_TOKEN)
+    return _turso_client
+
 def connect():
     if TURSO_URL:
-        import libsql_client
-        client = libsql_client.create_client_sync(url=TURSO_URL, auth_token=TURSO_TOKEN)
-        return _TursoConnection(client)
+        return _TursoConnection(_shared_turso_client())
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     db = sqlite3.connect(DB_PATH, timeout=30)
     db.row_factory = sqlite3.Row

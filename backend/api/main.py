@@ -71,6 +71,22 @@ def rows(query,params=()):
 def scalar(query,params=()):
     with connect() as db: return db.execute(query,params).fetchone()[0]
 def filters(property=None,start_date=None,end_date=None): return where(property,start_date,end_date)
+
+# Short-lived response cache for the heavy read endpoints. The hosted
+# database is remote, so each query is a network round trip; the dashboard
+# polls every minute and the data changes slowly, so caching for two
+# minutes keeps repeat loads instant. Writes clear the cache.
+import time as _time, threading as _threading
+_response_cache={}; _response_cache_lock=_threading.Lock()
+def _cache_get(key,ttl=120):
+    with _response_cache_lock:
+        item=_response_cache.get(key)
+        if item and _time.monotonic()-item[0]<ttl: return item[1]
+    return None
+def _cache_put(key,value):
+    with _response_cache_lock: _response_cache[key]=(_time.monotonic(),value)
+def _cache_clear():
+    with _response_cache_lock: _response_cache.clear()
 def property_today(): return datetime.now(ZoneInfo("Australia/Sydney")).date()
 
 @app.get("/api/health")
@@ -78,6 +94,8 @@ def health(): return {"status":"ok","review_count":scalar("SELECT COUNT(*) FROM 
 
 @app.get("/api/properties")
 def properties(property:str|None=None,start_date:str|None=None,end_date:str|None=None):
+    cache_key=("properties",property,start_date,end_date); cached=_cache_get(cache_key)
+    if cached is not None: return cached
     result=[]; today=property_today(); this_start=today-timedelta(days=today.weekday()); next_start=this_start+timedelta(days=7); prev_start=this_start-timedelta(days=7)
     if property and property!="all" and property not in PROPERTIES: raise HTTPException(400,"Unknown property")
     for slug,(name,url) in PROPERTIES.items():
@@ -103,6 +121,7 @@ def properties(property:str|None=None,start_date:str|None=None,end_date:str|None
         source=source[0] if source else {}
         top_issue=complaints[0] if complaints else None; top_praise=praises[0] if praises else None
         result.append({"property":slug,"name":name,"url":url,"review_count":stats["count"],"stored_review_count":stored_count,"average_rating":round(stats["avg"],2) if stats["avg"] is not None else None,"booking_total_reviews":source.get("booking_total_reviews"),"booking_overall_score":source.get("booking_overall_score"),"source_observed_at":source.get("source_observed_at"),"source_method":source.get("source_method"),"this_week_avg":round(this,2) if this is not None else None,"previous_week_avg":round(prev,2) if prev is not None else None,"wow_delta":round(this-prev,2) if this is not None and prev is not None else None,"top_complaint":top_issue["topic"] if top_issue else None,"top_complaint_count":top_issue["n"] if top_issue else 0,"top_complaint_share":round(top_issue["n"]/negative_count*100,1) if top_issue and negative_count else None,"top_praise":top_praise["topic"] if top_praise else None,"top_praise_count":top_praise["n"] if top_praise else 0,"top_praise_share":round(top_praise["n"]/positive_count*100,1) if top_praise and positive_count else None})
+    _cache_put(cache_key,result)
     return result
 
 @app.get("/api/overview")
@@ -216,6 +235,8 @@ def scrape_status():
 
 @app.get("/api/operations")
 def operations(property:str|None=None,days:int=Query(30,ge=7,le=90)):
+    cache_key=("operations",property,days); cached=_cache_get(cache_key)
+    if cached is not None: return cached
     today=property_today(); start=today-timedelta(days=days-1)
     clauses=["r.review_date>=?","r.sentiment='negative'"]; params=[start.isoformat()]
     if property and property!="all":
@@ -229,27 +250,41 @@ def operations(property:str|None=None,days:int=Query(30,ge=7,le=90)):
     negative_count=scalar("SELECT COUNT(*) FROM reviews"+period_where+" AND sentiment='negative'",period_params)
     positive_count=scalar("SELECT COUNT(*) FROM reviews"+period_where+" AND sentiment='positive'",period_params)
     issues=rows("SELECT j.value topic,COUNT(*) mentions,COUNT(DISTINCT r.id) review_count,ROUND(AVG(r.rating),1) average_rating,COUNT(DISTINCT r.property_slug) property_count FROM reviews r,json_each(r.issue_topics) j"+base+" GROUP BY j.value ORDER BY review_count DESC,mentions DESC",params)
+    issue_properties={}
+    for x in rows("SELECT j.value topic,r.property_slug property,COUNT(DISTINCT r.id) review_count FROM reviews r,json_each(r.issue_topics) j"+base+" GROUP BY j.value,r.property_slug ORDER BY review_count DESC",params):
+        issue_properties.setdefault(x["topic"],[]).append({"slug":x["property"],"name":PROPERTIES[x["property"]][0],"reviews":x["review_count"]})
+    issue_low_ratings={x["topic"]:x["n"] for x in rows("SELECT j.value topic,COUNT(DISTINCT r.id) n FROM reviews r,json_each(r.issue_topics) j"+base+" AND r.rating<7 GROUP BY j.value",params)}
+    issue_examples={}
+    for x in rows("SELECT topic,review_id,property_slug,property_name,reviewer_name,rating,review_date,title,negative_text FROM (SELECT j.value topic,r.review_id review_id,r.property_slug property_slug,r.property_name property_name,r.reviewer_name reviewer_name,r.rating rating,r.review_date review_date,r.title title,r.negative_text negative_text,ROW_NUMBER() OVER (PARTITION BY j.value ORDER BY r.rating ASC,r.review_date DESC,r.id DESC) rn FROM reviews r,json_each(r.issue_topics) j"+base+") WHERE rn<=2 ORDER BY topic,rn",params):
+        issue_examples.setdefault(x["topic"],[]).append({k:v for k,v in x.items() if k!="topic"})
     for issue in issues:
-        property_rows=rows("SELECT r.property_slug property,COUNT(DISTINCT r.id) review_count FROM reviews r,json_each(r.issue_topics) j"+base+" AND j.value=? GROUP BY r.property_slug ORDER BY review_count DESC",[*params,issue["topic"]])
-        issue["properties"]=[{"slug":x["property"],"name":PROPERTIES[x["property"]][0],"reviews":x["review_count"]} for x in property_rows]
+        issue["properties"]=issue_properties.get(issue["topic"],[])
         issue["period_share"]=round(issue["review_count"]/period_count*100,1) if period_count else 0
         issue["negative_share"]=round(issue["review_count"]/negative_count*100,1) if negative_count else 0
-        issue["low_rating_count"]=scalar("SELECT COUNT(DISTINCT r.id) FROM reviews r,json_each(r.issue_topics) j"+base+" AND j.value=? AND r.rating<7",[*params,issue["topic"]])
-        issue["examples"]=rows("SELECT r.review_id,r.property_slug,r.property_name,r.reviewer_name,r.rating,r.review_date,r.title,r.negative_text FROM reviews r,json_each(r.issue_topics) j"+base+" AND j.value=? ORDER BY r.rating ASC,r.review_date DESC,r.id DESC LIMIT 2",[*params,issue["topic"]])
+        issue["low_rating_count"]=issue_low_ratings.get(issue["topic"],0)
+        issue["examples"]=issue_examples.get(issue["topic"],[])
         issue["severity"]="high" if issue["review_count"]>=10 else "watch" if issue["review_count"]>=3 else "low"
     praise_clauses=["r.review_date>=?","r.sentiment='positive'"]; praise_params=[start.isoformat()]
     if property and property!="all": praise_clauses.append("r.property_slug=?"); praise_params.append(property)
     praise_base=" WHERE "+" AND ".join(praise_clauses)
     praises=rows("SELECT j.value topic,COUNT(DISTINCT r.id) review_count,ROUND(AVG(r.rating),1) average_rating FROM reviews r,json_each(r.praise_topics) j"+praise_base+" GROUP BY j.value ORDER BY review_count DESC",praise_params)
+    praise_properties={}
+    for item in rows("SELECT j.value topic,r.property_slug property,COUNT(DISTINCT r.id) reviews FROM reviews r,json_each(r.praise_topics) j"+praise_base+" GROUP BY j.value,r.property_slug ORDER BY reviews DESC",praise_params):
+        praise_properties.setdefault(item["topic"],[]).append({"slug":item["property"],"name":PROPERTIES[item["property"]][0],"reviews":item["reviews"]})
+    praise_examples={}
+    for x in rows("SELECT topic,review_id,property_slug,property_name,reviewer_name,rating,review_date,title,positive_text FROM (SELECT j.value topic,r.review_id review_id,r.property_slug property_slug,r.property_name property_name,r.reviewer_name reviewer_name,r.rating rating,r.review_date review_date,r.title title,r.positive_text positive_text,ROW_NUMBER() OVER (PARTITION BY j.value ORDER BY r.rating DESC,r.review_date DESC,r.id DESC) rn FROM reviews r,json_each(r.praise_topics) j"+praise_base+") WHERE rn<=2 ORDER BY topic,rn",praise_params):
+        praise_examples.setdefault(x["topic"],[]).append({k:v for k,v in x.items() if k!="topic"})
     for praise in praises:
         praise["period_share"]=round(praise["review_count"]/period_count*100,1) if period_count else 0
         praise["positive_share"]=round(praise["review_count"]/positive_count*100,1) if positive_count else 0
-        praise["properties"]=[{"slug":item["property"],"name":PROPERTIES[item["property"]][0],"reviews":item["reviews"]} for item in rows("SELECT r.property_slug property,COUNT(DISTINCT r.id) reviews FROM reviews r,json_each(r.praise_topics) j"+praise_base+" AND j.value=? GROUP BY r.property_slug ORDER BY reviews DESC",[*praise_params,praise["topic"]])]
-        praise["examples"]=rows("SELECT r.review_id,r.property_slug,r.property_name,r.reviewer_name,r.rating,r.review_date,r.title,r.positive_text FROM reviews r,json_each(r.praise_topics) j"+praise_base+" AND j.value=? ORDER BY r.rating DESC,r.review_date DESC,r.id DESC LIMIT 2",[*praise_params,praise["topic"]])
+        praise["properties"]=praise_properties.get(praise["topic"],[])
+        praise["examples"]=praise_examples.get(praise["topic"],[])
     task_clause=" WHERE (property_slug=? OR property_slug='all')" if property and property!="all" else ""
     task_params=[property] if task_clause else []
     actions=rows("SELECT * FROM action_tasks"+task_clause+" ORDER BY CASE priority WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END,due_date IS NULL,due_date,created_at DESC",task_params)
-    return {"window_start":start.isoformat(),"reference_date":today.isoformat(),"days":days,"period_review_count":period_count,"negative_review_count":negative_count,"positive_review_count":positive_count,"issues":issues,"praises":praises,"actions":actions}
+    result={"window_start":start.isoformat(),"reference_date":today.isoformat(),"days":days,"period_review_count":period_count,"negative_review_count":negative_count,"positive_review_count":positive_count,"issues":issues,"praises":praises,"actions":actions}
+    _cache_put(cache_key,result)
+    return result
 
 @app.get("/api/actions")
 def list_actions(status:str|None=None):
@@ -268,6 +303,7 @@ def create_action(action:ActionCreate):
     record={"id":uuid4().hex,"title":action.title.strip(),"details":action.details.strip(),"topic":action.topic,"property_slug":action.property_slug,"department":action.department.strip(),"priority":action.priority,"status":"open","owner":action.owner.strip(),"due_date":action.due_date,"completion_note":"","created_at":created,"updated_at":created,"completed_at":None}
     with connect() as db:
         db.execute("INSERT INTO action_tasks(id,title,details,topic,property_slug,department,priority,status,owner,due_date,completion_note,created_at,updated_at,completed_at) VALUES(:id,:title,:details,:topic,:property_slug,:department,:priority,:status,:owner,:due_date,:completion_note,:created_at,:updated_at,:completed_at)",record)
+    _cache_clear()
     return record
 
 @app.patch("/api/actions/{action_id}")
@@ -284,23 +320,29 @@ def update_action(action_id:str,update:ActionUpdate):
         record["completed_at"]=record["updated_at"] if patch["status"]=="completed" else None
     with connect() as db:
         db.execute("UPDATE action_tasks SET status=?,owner=?,due_date=?,completion_note=?,updated_at=?,completed_at=? WHERE id=?",(record["status"],record["owner"],record["due_date"],record["completion_note"],record["updated_at"],record["completed_at"],action_id))
+    _cache_clear()
     return record
 
 @app.get("/api/automation")
 def automation(impact_window:int=Query(30,ge=14,le=60)):
     if impact_window not in {14,30,60}: raise HTTPException(400,"impact_window must be 14, 30, or 60")
+    cache_key=("automation",impact_window); cached=_cache_get(cache_key)
+    if cached is not None: return cached
     today=property_today(); current_start=today-timedelta(days=29); previous_start=current_start-timedelta(days=30); previous_end=current_start-timedelta(days=1)
     current=rows("SELECT COUNT(*) count,ROUND(AVG(rating),2) average,SUM(sentiment='negative') negative FROM reviews WHERE review_date>=? AND review_date<=?",(current_start.isoformat(),today.isoformat()))[0]
     previous=rows("SELECT COUNT(*) count,ROUND(AVG(rating),2) average,SUM(sentiment='negative') negative FROM reviews WHERE review_date>=? AND review_date<=?",(previous_start.isoformat(),previous_end.isoformat()))[0]
     current["negative_rate"]=round((current["negative"] or 0)/current["count"]*100,1) if current["count"] else 0
     previous["negative_rate"]=round((previous["negative"] or 0)/previous["count"]*100,1) if previous["count"] else 0
+    all_runs=rows("SELECT id,property_slug,mode,started_at,finished_at,status,new_reviews,duplicates_skipped,pages,errors FROM scraper_runs ORDER BY id DESC LIMIT 400")
+    all_sources={x["property_slug"]:x for x in rows("SELECT * FROM property_source_state")}
+    counts_by_property={x["property_slug"]:x["n"] for x in rows("SELECT property_slug,COUNT(*) n FROM reviews GROUP BY property_slug")}
     by_property=[]
     coverage_total=0; listing_total=0; any_listing_total=False
     now_utc=datetime.now(timezone.utc)
     for slug,(name,url) in PROPERTIES.items():
-        count=scalar("SELECT COUNT(*) FROM reviews WHERE property_slug=?",(slug,))
-        latest_scoped=rows("SELECT id,property_slug,status,started_at,finished_at,new_reviews,duplicates_skipped,pages,errors FROM scraper_runs WHERE property_slug=? ORDER BY id DESC LIMIT 1",(slug,))
-        latest_all=rows("SELECT id,property_slug,status,started_at,finished_at,new_reviews,duplicates_skipped,pages,errors FROM scraper_runs WHERE property_slug IS NULL ORDER BY id DESC LIMIT 1")
+        count=counts_by_property.get(slug,0)
+        latest_scoped=[run for run in all_runs if run["property_slug"]==slug][:1]
+        latest_all=[run for run in all_runs if run["property_slug"] is None][:1]
         candidates=[run for run in (latest_scoped+latest_all) if run]
         latest_run=max(candidates,key=lambda run:run.get("started_at") or "") if candidates else None
         if latest_run and latest_run.get("property_slug") is None:
@@ -308,12 +350,12 @@ def automation(impact_window:int=Query(30,ge=14,le=60)):
             latest_run={**latest_run,"errors":"\n".join(own_errors)}
             if latest_run.get("status")=="completed_with_errors" and not own_errors:
                 latest_run["status"]="completed"
-        source_rows=rows("SELECT * FROM property_source_state WHERE property_slug=?",(slug,)); source=source_rows[0] if source_rows else {}
-        full_runs=rows("SELECT id,property_slug,finished_at,pages,new_reviews,duplicates_skipped FROM scraper_runs WHERE mode='full' AND status='completed' AND errors='' AND finished_at IS NOT NULL AND pages>0 AND (property_slug=? OR property_slug IS NULL) ORDER BY finished_at DESC LIMIT 1",(slug,))
-        last_full_run=full_runs[0] if full_runs else None
+        source=all_sources.get(slug,{})
+        full_candidates=[run for run in all_runs if run["mode"]=="full" and run["status"]=="completed" and run["errors"]=="" and run["finished_at"] is not None and run["pages"]>0 and (run["property_slug"]==slug or run["property_slug"] is None)]
+        last_full_run=max(full_candidates,key=lambda run:run["finished_at"]) if full_candidates else None
         source_is_latest=bool(source.get("latest_run_started_at") and (not latest_run or source["latest_run_started_at"]>=latest_run.get("started_at", "")))
-        successful=rows("SELECT id,mode,started_at,finished_at,new_reviews,duplicates_skipped,pages FROM scraper_runs WHERE (property_slug=? OR property_slug IS NULL) AND status='completed' AND errors='' AND finished_at IS NOT NULL AND pages>0 ORDER BY finished_at DESC LIMIT 1",(slug,))
-        last_successful=successful[0] if successful else None
+        successful_candidates=[run for run in all_runs if (run["property_slug"]==slug or run["property_slug"] is None) and run["status"]=="completed" and run["errors"]=="" and run["finished_at"] is not None and run["pages"]>0]
+        last_successful=max(successful_candidates,key=lambda run:run["finished_at"]) if successful_candidates else None
         try:
             success_age_hours=max(0,(now_utc-datetime.fromisoformat(last_successful["finished_at"])).total_seconds()/3600) if last_successful else None
         except (TypeError,ValueError): success_age_hours=None
@@ -363,7 +405,9 @@ def automation(impact_window:int=Query(30,ge=14,le=60)):
                     item["status"]="improved" if delta<0 else "worsened" if delta>0 else "unchanged"
         impact.append(item)
     impact_summary={"window_days":impact_window,"tracked_actions":len(actions),"measured_improved":sum(x["status"]=="improved" for x in impact),"worsened_or_escalated":sum(x["status"]=="worsened" for x in impact),"unchanged":sum(x["status"]=="unchanged" for x in impact),"awaiting_post_data":sum(x["status"]=="awaiting_post_data" for x in impact),"awaiting_completion":sum(x["status"]=="awaiting_action" for x in impact)}
-    return {"review_count":total,"coverage":coverage,"collection_health":health_summary,"impact_summary":impact_summary,"impact_actions":impact,"current_window":{"start":current_start.isoformat(),"end":today.isoformat(),**current},"previous_window":{"start":previous_start.isoformat(),"end":previous_end.isoformat(),**previous},"rating_change":round(current["average"]-previous["average"],2) if current["average"] is not None and previous["average"] is not None else None,"negative_rate_change":round(current["negative_rate"]-previous["negative_rate"],1) if current["count"] and previous["count"] else None,"properties":by_property,"recent_runs":history}
+    result={"review_count":total,"coverage":coverage,"collection_health":health_summary,"impact_summary":impact_summary,"impact_actions":impact,"current_window":{"start":current_start.isoformat(),"end":today.isoformat(),**current},"previous_window":{"start":previous_start.isoformat(),"end":previous_end.isoformat(),**previous},"rating_change":round(current["average"]-previous["average"],2) if current["average"] is not None and previous["average"] is not None else None,"negative_rate_change":round(current["negative_rate"]-previous["negative_rate"],1) if current["count"] and previous["count"] else None,"properties":by_property,"recent_runs":history}
+    _cache_put(cache_key,result)
+    return result
 
 
 # Single-service hosting: when the dashboard has been built (frontend/dist),
