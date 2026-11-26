@@ -1,0 +1,30 @@
+[
+  {
+    "property_slug": "olympic-paddington",
+    "booking_total_reviews": 129,
+    "booking_overall_score": 6.4,
+    "source_observed_at": "2026-11-26",
+    "source_method": "provided Booking listing snapshot"
+  },
+  {
+    "property_slug": "venus-potts-point-sydney",
+    "booking_total_reviews": 2385,
+    "booking_overall_score": 6.2,
+    "source_observed_at": "2026-11-26",
+    "source_method": "provided Booking listing snapshot"
+  },
+  {
+    "property_slug": "venus-surry-hills",
+    "booking_total_reviews": 2445,
+    "booking_overall_score": 6.6,
+    "source_observed_at": "2026-11-26",
+    "source_method": "provided Booking listing snapshot"
+  },
+  {
+    "property_slug": "chateau-de-venus",
+    "booking_total_reviews": 4305,
+    "booking_overall_score": 6.6,
+    "source_observed_at": "2026-11-26",
+    "source_method": "provided Booking listing snapshot"
+  }
+]
