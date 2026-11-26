@@ -217,6 +217,16 @@ def reviews(page:int=Query(1,ge=1),page_size:int=Query(25,ge=1,le=100),sort:str=
 
 @app.post("/api/scrape/trigger",status_code=202)
 def trigger_scrape(mode:Literal["incremental","full"]="incremental"):
+    if os.getenv("TURSO_DATABASE_URL"):
+        # Hosted deployment: Booking.com blocks collection from datacenter
+        # servers, so the run is queued for the external collection worker.
+        # The worker collects through a browser session Booking.com serves
+        # and writes the results back into this database, completing the run.
+        started=datetime.now(timezone.utc).isoformat()
+        with connect() as db:
+            cur=db.execute("INSERT INTO scraper_runs(mode,property_slug,started_at,status) VALUES(?,NULL,?,'queued')",(mode,started))
+            run_id=cur.lastrowid
+        return {"status":"queued","run_id":run_id}
     if not _start_scrape_process(mode): raise HTTPException(409,"A scrape is already running")
     return {"status":"started","pid":_scrape_process.pid}
 
