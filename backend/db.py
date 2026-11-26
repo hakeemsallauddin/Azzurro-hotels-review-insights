@@ -4,7 +4,13 @@ import os, sqlite3
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-DB_PATH = Path(os.getenv("AZZURRO_DB", ROOT / "data" / "reviews.sqlite3"))
+_DEFAULT_DB = ROOT / "data" / "reviews.sqlite3"
+_PUBLIC_DB = ROOT / "data" / "reviews-public.sqlite3"
+# A fresh clone ships only the public snapshot database (reviews-public.sqlite3).
+# Use it until a working reviews.sqlite3 exists, so the dashboard serves the
+# real collected reviews immediately after checkout instead of an empty database.
+_fallback = _PUBLIC_DB if not _DEFAULT_DB.exists() and _PUBLIC_DB.exists() else _DEFAULT_DB
+DB_PATH = Path(os.getenv("AZZURRO_DB", _fallback))
 PROPERTIES = {
     "olympic-paddington": ("Olympic Hotel Paddington", "https://www.booking.com/hotel/au/olympic-paddington.html"),
     "venus-potts-point-sydney": ("Potts Point", "https://www.booking.com/hotel/au/venus-potts-point-sydney.html"),
