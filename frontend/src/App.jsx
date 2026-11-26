@@ -62,6 +62,7 @@ function ReviewInsights({ data, filters, setFilters }) {
   const topics = data.topics ?? [];
   const propertyCount = (data.properties ?? []).length;
   const rating = (value) => value == null ? '—' : Number(value).toFixed(1);
+  const delta = (value) => value == null ? '—' : `${value > 0 ? '+' : ''}${Number(value).toFixed(2)}`;
   const changePage = (next) => setFilters((current) => ({ ...current, page: Math.max(1, Math.min(next, page.total_pages)) }));
 
   return <>
@@ -74,7 +75,7 @@ function ReviewInsights({ data, filters, setFilters }) {
 
     <section className="kpis">
       <Kpi label="CURRENT WEEK · AVG RATING" value={rating(overview.current_week_avg)} icon={<Star />} foot={`Out of 10 · ${(overview.current_week_count || 0).toLocaleString()} reviews to date`} />
-      <Kpi label="WEEK OVER WEEK" value={overview.wow_delta == null ? '—' : `${overview.wow_delta > 0 ? '+' : ''}${rating(overview.wow_delta)}`} icon={overview.wow_delta >= 0 ? <ArrowUpRight /> : <ArrowDownRight />} tone={overview.wow_delta < 0 ? 'red' : 'green'} foot={`Previous week ${rating(overview.previous_week_avg)} · ${(overview.previous_week_count || 0).toLocaleString()} reviews`} />
+      <Kpi label="WEEK OVER WEEK" value={delta(overview.wow_delta)} icon={overview.wow_delta >= 0 ? <ArrowUpRight /> : <ArrowDownRight />} tone={overview.wow_delta < 0 ? 'red' : 'green'} foot={`Previous week ${rating(overview.previous_week_avg)} · ${(overview.previous_week_count || 0).toLocaleString()} reviews`} />
       <Kpi label="REVIEWS IN SELECTED PERIOD" value={(overview.total_reviews || 0).toLocaleString()} icon={<MessageSquareText />} tone="purple" foot="Use All time to browse the full stored dataset" />
       <Kpi label="NEGATIVE REVIEW RATE" value={`${overview.negative_rate || 0}%`} icon={<ThumbsDown />} tone="amber" foot={`${(overview.negative_count || 0).toLocaleString()} negative reviews`} />
     </section>
@@ -85,7 +86,7 @@ function ReviewInsights({ data, filters, setFilters }) {
       <div className="property-title"><div className="property-icon"><Hotel size={16} /></div><b>{property.name}</b></div>
       <div className="property-score-pair"><div><small>Selected-period review mean</small><strong>{rating(property.average_rating)}<em>/10</em></strong><span>{property.review_count.toLocaleString()} in selected period</span></div><div><small>Booking.com score</small><strong>{property.booking_overall_score == null ? '—' : Number(property.booking_overall_score).toFixed(1)}<em>{property.booking_overall_score == null ? '' : '/10'}</em></strong><span>{property.source_observed_at ? `Observed ${new Date(property.source_observed_at).toLocaleDateString()}` : 'Not captured yet'}</span></div></div>
       <div className="property-signals"><div><small>Top issue</small><b>{property.top_complaint ? `${property.top_complaint} · ${property.top_complaint_share}%` : 'No tagged complaints'}</b></div><div><small>Top praise</small><b>{property.top_praise ? `${property.top_praise} · ${property.top_praise_share}%` : 'No tagged praise'}</b></div></div>
-      <div className="property-bottom"><span>WoW {property.wow_delta == null ? '—' : `${property.wow_delta > 0 ? '+' : ''}${rating(property.wow_delta)}`}</span><span>{property.booking_total_reviews == null ? `${property.stored_review_count.toLocaleString()} stored · listing total unknown` : `${property.stored_review_count.toLocaleString()} stored / ${property.booking_total_reviews.toLocaleString()} listed`}</span></div>
+      <div className="property-bottom"><span>WoW {delta(property.wow_delta)}</span><span>{property.booking_total_reviews == null ? `${property.stored_review_count.toLocaleString()} stored · listing total unknown` : `${property.stored_review_count.toLocaleString()} stored / ${property.booking_total_reviews.toLocaleString()} listed`}</span></div>
       <a className="listing-link" href={property.url} target="_blank" rel="noreferrer">View Booking.com listing</a>
     </article>)}</div></section>
 
