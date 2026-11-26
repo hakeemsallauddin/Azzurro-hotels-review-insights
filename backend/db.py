@@ -12,7 +12,10 @@ _PUBLIC_DB = ROOT / "data" / "reviews-public.sqlite3"
 # (reviews-public.sqlite3); on first run it is copied once to seed the working
 # database, and from then on only the working database is used.
 DB_PATH = Path(os.getenv("AZZURRO_DB", _DEFAULT_DB))
-if "AZZURRO_DB" not in os.environ and not DB_PATH.exists() and _PUBLIC_DB.exists():
+if not DB_PATH.exists() and _PUBLIC_DB.exists() and DB_PATH != _PUBLIC_DB:
+    # First run with a fresh working database (new clone, or a persistent
+    # disk mounted elsewhere via AZZURRO_DB): seed it once from the shipped
+    # snapshot, then only the working database is used.
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(_PUBLIC_DB, DB_PATH)
 PROPERTIES = {
