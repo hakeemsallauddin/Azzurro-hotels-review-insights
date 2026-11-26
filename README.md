@@ -1,122 +1,213 @@
 # Azzurro Hotels — Booking.com Review Insights
 
-Operations dashboard and local review warehouse for the four Booking.com property pages in the brief. The repository contains **no seeded or fabricated reviews**. An empty dashboard is expected until live reviews are successfully collected.
+A local operations dashboard for guest feedback across four Azzurro Hotels properties. It collects reviews visible on the public Booking.com property pages, stores them in SQLite, and provides searchable review browsing, rating trends, operational topic insights, corrective action tracking, and collection health monitoring.
+
+## Submission contents
+
+This repository includes the complete application source, installation and run instructions, architecture and collection notes, known limitations, and a small real-review sample at [`data/sample_reviews.csv`](data/sample_reviews.csv). The CSV contains one review captured from each property, with reviewer names and Booking review IDs omitted.
+
+The full local review database is intentionally not included in GitHub. At the time this README was prepared, the local SQLite database contained 9,180 unique stored rows. That count is a local observation, not a claim that every review currently listed by Booking.com has been collected. The committed sample CSV is only an illustrative subset; it is not a substitute for the full database.
+
+## Properties
+
+| Dashboard property | Booking.com page |
+| --- | --- |
+| Olympic Hotel Paddington | [olympic-paddington](https://www.booking.com/hotel/au/olympic-paddington.html) |
+| Potts Point | [venus-potts-point-sydney](https://www.booking.com/hotel/au/venus-potts-point-sydney.html) |
+| Central Sydney | [venus-surry-hills](https://www.booking.com/hotel/au/venus-surry-hills.html) |
+| Darling Harbour | [chateau-de-venus](https://www.booking.com/hotel/au/chateau-de-venus.html) |
 
 ## Requirements
 
-- Python 3.10 or newer
-- Node.js 20 or newer and npm
-- Chromium installed through Playwright
-- A network connection and a Booking.com page session that is permitted to access the property review pages
+- Python 3.10 or later
+- Node.js 20 or later and npm
+- Internet access to collect reviews
+- Chromium installed through Playwright (the setup command below installs it)
 
-## Run locally
+No Booking.com API key or paid AI service is required. Booking.com may show a verification or anti-bot page; the collector does not bypass it.
 
-From this repository directory:
+## Setup and run locally
 
-### Windows (PowerShell)
+### 1. Set up the backend
+
+In PowerShell, from the project root:
 
 ```powershell
+cd "C:\path\to\azzurro-hotels"
 py -3 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
 python -m playwright install chromium
-python -m backend.scraper.run_scraper --mode full
+```
+
+If PowerShell blocks activating the virtual environment, run this in that terminal first:
+
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned
+```
+
+Start the API in this terminal:
+
+```powershell
+$env:AUTO_SCRAPE = "false"
 python -m backend.run_api
 ```
 
-In a second terminal:
+The API is available at <http://127.0.0.1:8000>, interactive API documentation at <http://127.0.0.1:8000/docs>, and health check at <http://127.0.0.1:8000/api/health>.
+
+### 2. Set up and start the frontend
+
+Open a second PowerShell terminal:
 
 ```powershell
-cd frontend
+cd "C:\path\to\azzurro-hotels\frontend"
 npm install
 npm run dev
 ```
 
-Open http://127.0.0.1:5173. On macOS/Linux, use `python3 -m venv .venv`, `source .venv/bin/activate`, and the same remaining commands. The API is at http://127.0.0.1:8000 and interactive docs at http://127.0.0.1:8000/docs.
+Open <http://127.0.0.1:5173>. Keep both terminals running. Vite forwards `/api` requests to the backend on port 8000. If the frontend reports `ECONNREFUSED 127.0.0.1:8000`, start or restart the backend terminal.
 
-For routine updates run `python -m backend.scraper.run_scraper` (incremental mode). Useful options:
+The API creates its local database at `data/reviews.sqlite3` by default. To use another path, set `AZZURRO_DB` before starting the API. The API can also start incremental collection automatically; set `AUTO_SCRAPE=false` as above to disable this behavior. When enabled, its interval defaults to 12 hours and can be changed with `SCRAPE_INTERVAL_HOURS`.
 
-```sh
+### 3. Collect reviews
+
+From the repository root, with the virtual environment active:
+
+```powershell
+# Incremental update (default)
+python -m backend.scraper.run_scraper
+
+# Full accessible-page backfill
 python -m backend.scraper.run_scraper --mode full
+
+# Limit a run to one property
 python -m backend.scraper.run_scraper --mode incremental --property venus-potts-point-sydney
+
+# Bound a run while diagnosing source changes
 python -m backend.scraper.run_scraper --mode full --property chateau-de-venus --max-pages 3
 ```
 
-If Booking displays a human verification page, a headless scheduled run records that limitation and stops instead of saving page controls as reviews. For manual verification, run the CLI in a visible browser. Complete the check yourself; the scraper waits and resumes automatically, so do not press Enter:
+The dashboard's **Refresh reviews** control can also trigger an incremental run through the API. Collection is resumable: saved review rows remain in SQLite if a run stops, and duplicate rows are skipped on later runs.
+
+If you need to complete a Booking.com verification yourself, use a visible browser session in the terminal where you run the scraper:
 
 ```powershell
 $env:PLAYWRIGHT_BROWSERS_PATH = "$PWD\.playwright"
-$env:AUTO_SCRAPE = "false"
 $env:BOOKING_HEADLESS = "false"
 $env:BOOKING_STORAGE_STATE = "data/booking-state.json"
-$env:BOOKING_VERIFICATION_TIMEOUT_SECONDS = "300"
-python -m playwright install chromium
 python -m backend.scraper.run_scraper --mode full
 ```
 
-To use the dashboard's **Refresh reviews** button for manual verification, set the same environment variables in the PowerShell window used to start the API, restart the API, and then click Refresh. The API passes these settings to the scraper process. The visible browser must remain open while you complete the check. The wait is limited to 5 minutes by default (configurable up to 30 minutes); no challenge is solved or bypassed automatically.
+Complete any prompt in the opened browser. Keep the browser open while the scraper waits. Do not share `data/booking-state.json`: it can contain session cookies. You can set `BOOKING_VERIFICATION_TIMEOUT_SECONDS` to change the wait (up to the configured maximum). A headless or unattended run may stop when a verification page appears; check the collection run history and per-property status rather than treating process startup as proof of a successful collection.
 
-The local browser state file is ignored by Git. Do not share or commit it; it may contain session cookies.
+## Dashboard features
 
-The database is created at `data/reviews.sqlite3`; set `AZZURRO_DB` to use a different path. When the API starts, it performs an incremental scrape in the background and repeats every 12 hours by default. Set `AUTO_SCRAPE=false` to disable scheduled collection or `SCRAPE_INTERVAL_HOURS=6` to change the interval. The UI's Refresh reviews button can start an additional incremental scrape. `GET /api/scrape/status` reports the most recent run. The dashboard also reloads API data every 60 seconds so new database rows appear without a page reload.
+- **Review Insights:** current and previous week rating comparison, period filters, property performance, positive and negative trends, operational topics, key takeaways, and a review feed with pagination, search, sorting, sentiment and topic filters.
+- **Operations & Actions:** recurring negative topic signals, review evidence, and persistent corrective tasks that can be assigned and tracked.
+- **Automation & Impact:** per-property collection coverage and backfill status, scrape history and errors, source listing totals/scores when observed, freshness, and before/after descriptive comparisons for completed actions.
+- Date and property filters narrow the review feed and associated analytics. API-backed screens refresh periodically; the Review Insights dashboard polls for newly stored rows.
 
 ## Architecture
 
-- `backend/scraper/`: Playwright collector with per-property browser sessions, retry/backoff, delays, response JSON inspection and DOM-card fallback. Each review is committed immediately, so an interrupted full run retains collected rows and can be rerun.
-- `backend/db.py`: SQLite schema, unique constraints and indexes for review date, property/date, rating and sentiment.
-- `backend/analytics/`: deterministic rating/text sentiment and operational keyword topic tagging.
-- `backend/api/`: FastAPI overview, property summary, trend, topic and server-paginated review endpoints, plus scrape trigger/status.
-- `frontend/`: React/Vite operations workspace with separate Review Insights, Operations & Actions, and Automation & Impact views. The review feed is server-paginated and topic filters link insights back to individual reviews.
-- `backend/api/`: FastAPI analytics plus persistent action tracking and collection health summaries.
+```text
+Booking.com property pages
+          │
+          ▼
+Playwright collector (backend/scraper/run_scraper.py)
+          │ parsed reviews, listing metadata, run results
+          ▼
+SQLite database (data/reviews.sqlite3)
+          │
+          ├── FastAPI analytics and operations API (backend/api/main.py)
+          └── React + Vite operations dashboard (frontend/src/)
+```
 
-## Collection, identity and completeness
+- `backend/scraper/` loads property review pages, inspects review-related JSON responses and visible review cards, follows available pagination, retries temporary failures, and records scrape results.
+- `backend/db.py` initializes the SQLite schema, indexes and uniqueness constraints. Each saved review has a stable source identity where available.
+- `backend/analytics/classify.py` computes sentiment and operational topic tags using transparent local rules.
+- `backend/api/main.py` exposes review, analytics, collection status, and corrective action endpoints.
+- `frontend/src/App.jsx`, `Operations.jsx`, and `Automation.jsx` implement the three dashboard workspaces; shared styling is in the CSS files in `frontend/src/`.
 
-Targets: Olympic Hotel Paddington, Potts Point, Central Sydney and Darling Harbour. The collector listens for JSON responses containing review-like objects while the page loads, and also parses visible review cards and follows the page's next control. Booking.com changes its frontend and may serve an anti-bot verification page or restrict automated collection. The collector does not bypass a challenge. Inspect `scraper_runs.errors`, logs, and per-property review counts to confirm the actual result; a successful process start is not proof that every review was accessible.
+## Review collection method and data quality
 
-The database enforces uniqueness on `(property_slug, review_id)` and a second unique `review_key`. The native Booking review ID is preferred. When absent, `review_key` is SHA-256 over property slug, reviewer name, review date, title, positive text and negative text. The fallback is deterministic but can merge genuinely repeated identical text or fail to detect edits; source IDs are more reliable. On incremental runs, pagination stops after five consecutive duplicate cards. Full mode continues until no next page is exposed (or `--max-pages` is reached). Actual coverage depends on what Booking exposes to the session; no unsupported claim that all reviews were collected is made.
+Booking.com API access is not assumed. The collector uses Playwright to load the four public property pages and reads review-like records exposed in page network JSON and rendered review cards. It follows the page's available next-page control and stores the review date, rating, property, title, positive/negative comment text and other available fields. It also records relevant listing totals/scores when those are visible. The public listing snapshot in [`data/booking-source-snapshot.json`](data/booking-source-snapshot.json) is dated source context, not a live feed.
 
-Duplicate prevention is automatic at insert time. The collector does not label or delete a review as fake: the public page does not expose a reliable authenticity signal, and text heuristics would risk deleting genuine guest feedback. Suspected spam or policy-violating content needs a human/source verification process before removal.
+Duplicate protection uses a unique `(property_slug, review_id)` constraint when a Booking review ID is available. A deterministic content hash is used as a fallback identity when it is not. This can merge genuinely identical reviews or miss edits when source identifiers are unavailable. Each completed page is committed promptly so interruptions retain collected rows.
 
-Automation & Impact separates the mean of collected review scores from Booking.com's property-level score. The tracked source snapshot in `data/booking-source-snapshot.json` records the listing totals and scores visible in the supplied Booking/dashboard screenshots on 26 Nov 2026; it is dated and is not treated as a current live feed. When a later scrape can read the Booking property page, the collector refreshes the listing total and official score from the page DOM. Coverage is calculated from stored unique rows versus that observed listing total. The dashboard reports the source observation date, missing-row gap, latest scrape error and full-backfill progress separately. It does not call a crawl complete merely because the process exited; a full crawl must reach the observed total without page or collection errors. If Booking blocks access, the status remains partial/blocked and needs a permitted visible browser session to resume.
+Coverage is measured against the latest observed Booking.com listing total where available. Listing totals can change, some reviews may not be exposed in accessible page responses, and Booking.com can change its page structure or restrict automated access. Therefore **stored count is not proof of complete collection**. The monitor shows accessible/observed coverage and run errors; a full backfill is only marked complete when the available scope has been traversed without collection errors. Some historical reviews may be score-only or otherwise inaccessible as public review cards.
 
-Run exports only after a scrape has populated the database. This repo deliberately does not contain `sample_reviews.json` or CSV with invented rows. To inspect the full dataset, use `/api/reviews` with `page` and `page_size` (up to 100), or query SQLite. The API returns `total_count` and `total_pages` so clients can traverse all records.
+The collector does not declare reviews “fake” or delete them based on text heuristics. Public review pages do not provide a dependable authenticity signal; suspected spam requires source or human verification. Review text is public page content, but the sample export omits reviewer names and review IDs. The local session state and complete database are excluded from this repository.
 
-## Classification methodology and limits
+## Insights and classification methodology
 
-Ratings of 8+ are positive, below 6 negative and 6–7.9 neutral. For the middle band, a small transparent positive/negative word count may move sentiment when polarity is strong. Review text is never translated or sent to a paid service. Eight curated keyword dictionaries assign multiple operational topics. General topic tags cover both positive and negative comment text; negative issue insights are tagged only from the negative comment and positive praise only from the positive comment. Recurring issue cards include actual stored review excerpts and can open the matching feed. This remains keyword matching: context, sarcasm, multilingual text, and negation can still produce misses or false positives. Treat these summaries as operational signals for review, not formal staff-performance measurements.
+Sentiment uses ratings as the main signal: ratings of 8 or higher are positive, below 6 are negative, and 6–7.9 are neutral. For the middle band, a small local positive/negative word check may adjust a label when the text polarity is strong. A review without a usable rating is not given an invented score.
 
-The Collection Monitor reports freshness from each property's latest successful run, separately from a more recent blocked attempt; a fresh previous sync does not erase the failed attempt, which remains visible in the run history and property status. Business Impact compares the selected topic's negative-review mentions per 100 reviews, negative rate, and mean rating in equal-length windows before and after an action's completion date. It waits for a full post-action window with review data and is descriptive, not proof that an action caused any change.
+Keyword dictionaries assign operational topics such as cleanliness, check-in, staff, noise, facilities, location, room condition, and value for money. Reviews may receive multiple tags. Issue analysis uses negative comment text; praise analysis uses positive comment text. Shares are descriptive counts over the selected, collected reviews, not causal claims. Keyword rules can miss multilingual phrasing, sarcasm, negation, context, and synonyms, or assign a topic incorrectly. Treat the results as leads for staff review rather than definitive measurements.
 
-Weekly insights are generated from records in the selected period. They are descriptive shares, not causal conclusions. Unknown dates and missing ratings remain missing instead of being inferred from dashboard examples.
+Business Impact compares the same-length windows before and after an action's completion date using available review volume, negative rate, topic mentions, and mean rating. It describes a change over time; it cannot establish that the action caused the change.
 
-## API
+## API endpoints
 
+- `GET /api/health`
 - `GET /api/overview`
 - `GET /api/properties`
 - `GET /api/trends?interval=week|day`
 - `GET /api/topics`
 - `GET /api/reviews?page=1&page_size=25&sort=newest|oldest|highest|lowest&q=...&property=...&start_date=YYYY-MM-DD&end_date=YYYY-MM-DD&sentiment=...&topic=...`
 - `POST /api/scrape/trigger?mode=incremental|full`, `GET /api/scrape/status`
-- `GET /api/operations?property=all&days=30` for recurring negative-topic signals and stored action tasks
-- `GET|POST /api/actions`, `PATCH /api/actions/{id}` for persistent action tracking
-- `GET /api/automation` for property collection history and adjacent 30-day portfolio comparisons
-- `GET /api/health`
+- `GET /api/operations?property=all&days=30`
+- `GET /api/actions`, `POST /api/actions`, `PATCH /api/actions/{id}`
+- `GET /api/automation`
 
-Date and property filters are supported on analytics and review endpoints. Sentiment and topic are supported on the review feed.
+Most analytics and review routes accept date and property filters; the review feed also accepts sentiment and topic. Review results are paginated and return total counts so a client can browse beyond the first page.
 
-## Security and operations
+## Tests and production status
 
-No credentials, browser cookies, API keys, or Booking session storage are committed. `.gitignore` excludes the SQLite database, exports, environments and browser cache. The API binds to loopback by default; configure `CORS_ORIGINS` explicitly before exposing it beyond localhost. Back up `data/reviews.sqlite3` before migrations or operational maintenance.
-
-## Tests and deployment readiness
-
-Run the isolated backend regression tests and syntax check from the repository root:
+Run the backend regression tests and Python syntax check from the repository root:
 
 ```powershell
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
 .\.venv\Scripts\python.exe -m compileall -q backend tests
 ```
 
-The tests use a temporary SQLite database and never seed or clear `data/reviews.sqlite3`. Build the frontend from its directory with `npm run build`.
+Build the frontend:
 
-This project is currently configured and verified as a local application, not a public deployment. The API launches Playwright as a child process and writes to SQLite, so a public deployment needs a persistent worker plus durable storage. Do not deploy the current SQLite database to an ephemeral serverless filesystem. A practical hosted setup is a persistent container/VM for the API and scraper with a mounted durable volume; for multiple API/worker replicas, migrate to PostgreSQL and move scheduled scraping to a single worker. Configure `CORS_ORIGINS`, the database path/connection, and any browser storage on the host. No deployment manifest or hosted service is included in this repository.
+```powershell
+cd frontend
+npm run build
+```
+
+The project has been configured and exercised as a local application. This repository does **not** include a hosted demo or deployment configuration. A production deployment needs a persistent API/worker host, durable storage, environment-specific CORS configuration, and a supported process for any human verification. Do not deploy SQLite on an ephemeral serverless filesystem. For multiple API/worker instances, use PostgreSQL and a single scheduled collection worker. Public availability of a deployment also depends on source-site terms and access restrictions.
+
+## Security and files to keep local
+
+Never commit Booking credentials or browser cookies/session state. The `.gitignore` excludes the database, database journal files, session state, environment secrets, virtual environments, browser binaries/cache, frontend dependencies and build output. Do not force-add these files. In particular, keep these local:
+
+- `data/reviews.sqlite3` and its `-wal` / `-shm` files
+- `data/booking-state.json`
+- `.env` files containing secrets
+- `.venv/`, `frontend/node_modules/`, `frontend/dist/`, and `.playwright/`
+
+The included `data/sample_reviews.csv` is a small real-data sample from the local collection, with reviewer names and source review IDs removed. It is not the complete review database. Back up the local database before migrations or maintenance.
+
+## Repository layout
+
+```text
+backend/
+  analytics/       sentiment and operational topic rules
+  api/             FastAPI routes and application lifecycle
+  scraper/         Playwright collector and CLI
+  db.py            SQLite schema and persistence
+  run_api.py       API entry point
+data/
+  booking-source-snapshot.json   dated observed listing context
+  sample_reviews.csv              small anonymized real-review sample
+  reviews.sqlite3                generated local database (not committed)
+frontend/
+  src/             React dashboard views and styles
+  package.json     frontend scripts and dependencies
+tests/             backend regression tests
+README.md
+requirements.txt
+PROJECT_AUDIT_AND_DEPLOYMENT_REPORT.md
+```

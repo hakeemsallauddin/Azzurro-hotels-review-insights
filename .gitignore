@@ -12,6 +12,7 @@ dist/
 *.db
 *.db-*
 data/*.csv
+!data/sample_reviews.csv
 data/*.json
 !data/booking-source-snapshot.json
 data/*state*.json
