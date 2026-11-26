@@ -4,7 +4,7 @@ Operations dashboard for collecting and understanding guest reviews across Olymp
 
 ## 1. Source code
 
-The complete source repository is [Azzurro-hotels-review-insights](https://github.com/hakeemsallauddin/Azzurro-hotels-review-insights). It contains the Python/FastAPI backend, Playwright scraper, React/Vite dashboard, tests, documentation, and a small real-review sample. The full SQLite database and Booking.com browser session are local-only and are not committed.
+The complete source repository is [Azzurro-hotels-review-insights](https://github.com/hakeemsallauddin/Azzurro-hotels-review-insights). It contains the Python/FastAPI backend, Playwright scraper, React/Vite dashboard, tests, documentation, a small real-review sample (`data/sample_reviews.csv`), and the full collected dataset: `data/reviews-public.sqlite3` holds all 9,180 collected reviews and seeds the working database on first run. Only the generated working database (`data/reviews.sqlite3`) and the Booking.com browser session state are local-only and are not committed.
 
 ## 2. Setup, usage, architecture, and limitations
 
@@ -35,6 +35,8 @@ npm run dev
 ```
 
 Open <http://127.0.0.1:5173>. The API runs at <http://127.0.0.1:8000> and its interactive documentation is at <http://127.0.0.1:8000/docs>. Keep both terminals open. The default database is `data/reviews.sqlite3`; use `AZZURRO_DB` to change its location. A fresh clone does not contain `reviews.sqlite3` (it is local-only), so on first run it is seeded automatically by copying the shipped snapshot `data/reviews-public.sqlite3`. From then on there is a single working database: the scraper stores backfilled reviews in `data/reviews.sqlite3` and the dashboard serves that same file, so new reviews appear without any extra step. `AUTO_SCRAPE=false` disables automatic background scraping; otherwise the API starts incremental collection and repeats every 12 hours by default (`SCRAPE_INTERVAL_HOURS` changes the interval).
+
+For production, build the frontend once (`cd frontend && npm run build`); the API then serves the built dashboard itself from the same port, so a single process hosts the whole application — this is how the public demo below runs.
 
 ### Running the scraper
 
@@ -75,7 +77,7 @@ flowchart LR
 
 **Stack:** Python, Playwright, FastAPI, SQLite, React, Vite, JavaScript, and CSS. The scraper commits rows as it progresses and uses unique source IDs, with a deterministic content hash fallback, to avoid duplicate inserts. It collects review records exposed in page JSON responses or rendered review cards and follows available pagination.
 
-Collection completeness depends on the content Booking.com exposes to the current session. The source site may change its page structure, restrict automated access, or show verification; inaccessible reviews cannot be collected by this application. The dashboard compares unique stored reviews with the latest observed listing total when available and reports gaps and run errors. It does not claim completeness from a matching count alone. The dated `data/booking-source-snapshot.json` is historical context, not a live total. At README preparation, the local database had 9,180 rows; the database itself is not included in the repository.
+Collection completeness depends on the content Booking.com exposes to the current session. The source site may change its page structure, restrict automated access, or show verification; inaccessible reviews cannot be collected by this application. The dashboard compares unique stored reviews with the latest observed listing total when available and reports gaps and run errors. It does not claim completeness from a matching count alone. The dated `data/booking-source-snapshot.json` is historical context, not a live total. The shipped snapshot `data/reviews-public.sqlite3` contains the 9,180 collected rows; the working database is generated from it on first run (see Setup).
 
 ### Insights and known limitations
 
@@ -96,13 +98,15 @@ npm run build
 
 ## 3. Working application or demo
 
-The local application is available at <http://127.0.0.1:5173> after completing the setup above and starting both services. **Public demo:** not deployed yet. Add the deployed URL here after hosting is configured; `localhost` is only accessible on the local computer.
+The local application is available at <http://127.0.0.1:5173> after completing the setup above and starting both services.
 
-The current project has been run locally. Public deployment requires a persistent API/worker host, durable storage, environment-specific CORS configuration, and a plan for any manual source verification. SQLite must not be placed on an ephemeral serverless filesystem; for multiple application or worker replicas, use PostgreSQL and a single scheduled collection worker. No hosted demo or deployment configuration is included in this repository yet.
+**Public demo: <https://azzurro-hotels-review-insights.onrender.com>** — the full dashboard (Review Insights, Operations & Actions, Automation & Impact) running this exact code. It is hosted on Render's free tier with the review database in a Turso (libSQL) cloud database, so the data persists while the service sleeps when idle (the first load after idle can take about a minute). The hosted instance runs with `AUTO_SCRAPE=false`: Booking.com restricts collection from datacenter IPs, so the demo serves the shipped collected dataset (9,180 reviews) and new reviews are collected by running the scraper locally. To run the API against Turso yourself, set `TURSO_DATABASE_URL` (the `https://` form) and `TURSO_AUTH_TOKEN`; without them it uses the local SQLite file. `scripts/migrate_to_turso.py` copies a local database into Turso.
+
+For a self-hosted deployment, any host that can run the Python API works; keep the SQLite database on durable storage (or use Turso as above) and run collection from a single worker.
 
 ## 4. Sample review data
 
-[`data/sample_reviews.csv`](data/sample_reviews.csv) contains four actual collected review records—one per property—with reviewer names and Booking review IDs omitted. It is a small example dataset, not the complete review history. The full 9,180-row database is local-only and excluded from GitHub; the dashboard fills with reviews when a user runs the scraper into the local database.
+[`data/sample_reviews.csv`](data/sample_reviews.csv) contains four actual collected review records — one per property — with reviewer names and Booking review IDs omitted. The complete collected dataset ships in the repository as [`data/reviews-public.sqlite3`](data/reviews-public.sqlite3): 9,180 real reviews (Olympic Hotel Paddington 127, Potts Point 2,361, Central Sydney 2,434, Darling Harbour 4,258), including score-only ratings that have no public review text. On first run the application copies this snapshot to the working database `data/reviews.sqlite3`; the scraper then adds newly published reviews to that same file.
 
 ## Security
 

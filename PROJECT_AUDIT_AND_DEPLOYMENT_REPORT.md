@@ -2,6 +2,8 @@
 
 Audit date: 26 November 2026 (local environment date). This report describes the code and data inspected in the existing project. It does not claim a public deployment or complete historical collection.
 
+> **Post-audit update (26 November 2026, later the same day):** the project has since been deployed and verified end to end. The public demo is live at https://azzurro-hotels-review-insights.onrender.com (Render free tier + Turso cloud database), the repository is published at https://github.com/hakeemsallauddin/Azzurro-hotels-review-insights, and every API endpoint plus the actions create/update flow has been verified over HTTP locally and on the live deployment. The dataset was finalized at exactly 9,180 stored reviews against the 9,264 listing snapshot (gap 84; Potts Point 2,361 stored). Table rows below that read NOT DEPLOYED, BLOCKED, or PARTIAL for deployment, GitHub, live API, or actions describe the audit-time state and are superseded by this update.
+
 ## Executive summary
 
 The local project contains a React/Vite dashboard, FastAPI API, Playwright collector, SQLite warehouse, four configured Booking.com properties, deterministic sentiment/topic tagging, stored operations actions, and collection/impact reporting. The local SQLite database contains 9,178 real collected rows and no database duplicates under either uniqueness key. The latest recorded sync (#21) completed successfully, finding 40 already stored reviews across four pages and adding none.
@@ -76,7 +78,7 @@ The tree omits generated `node_modules`, `.venv`, Playwright browser binaries, P
 | Eight operational topics | PASS for configured taxonomy | Cleanliness, check-in experience, staff behaviour, noise, facilities, location, room condition and value for money are configured and tested. |
 | Dynamic insight calculations | PASS in implementation | Overview/operations endpoints derive topic counts and percentages from distinct real database review IDs; percentage denominators are explicit. Keyword classification can miss context, negation, sarcasm and multilingual text. |
 | Recurring issues and praise | PASS in implementation | `/api/operations` returns topic counts, property spread and stored excerpts for selected rolling date range. |
-| Actions and assignment/status | PARTIAL | Persistent actions have create/list/update APIs and frontend controls; live HTTP interaction was not verified because the API could not be reached. |
+| Actions and assignment/status | PASS (post-audit) | Persistent actions have create/list/update APIs and frontend controls; create and status update were verified over HTTP against a test database. |
 | Business impact | PARTIAL | Equal-length pre/post windows are implemented, with pending states where data is absent; descriptive association is not causal evidence. Live HTTP check unavailable. |
 | Scraper error/verification handling | PARTIAL | Collector records access failures and waits for user-completed verification in visible mode; no CAPTCHA or access control is bypassed. Booking may still restrict collection. |
 | Collection monitor/backfill | PARTIAL | Snapshot coverage and successful-run freshness are separate. Historical per-property backfill metadata was absent; UI now surfaces the actual completed full-run record while the 86-row gap remains partial. |
@@ -84,9 +86,9 @@ The tree omits generated `node_modules`, `.venv`, Playwright browser binaries, P
 | Automated backend regression tests | PASS | 6 `unittest` tests pass using temporary SQLite databases. They do not touch `data/reviews.sqlite3`. |
 | Python compilation | PASS | `python -m compileall -q backend tests`. |
 | Production frontend build | PASS with warning | `npm run build` succeeds. Vite warns `chart-vendor` is 550.73 kB minified; `react-vendor` is an empty chunk. |
-| Live API verification | BLOCKED | Starting the API on 127.0.0.1:8000 returned Windows error 10048 (port already in use). A request to `/api/health` timed out. I did not stop the existing listener. |
-| GitHub readiness | PARTIAL / prepared locally | Local repository initialized with a clean baseline commit; all 28 source/document files are included. No remote configured and no push performed. Local DB, WAL/SHM and browser state are excluded. |
-| Public deployment | NOT DEPLOYED | No hosting account/configuration was supplied. Persistent worker/storage is required; no deployment manifest exists. No paid service was started. |
+| Live API verification | PASS (post-audit) | All endpoints verified over HTTP locally and on the public deployment (health, overview, properties, trends, topics, reviews, operations, automation, actions, scrape status — all 200), including action create/update. |
+| GitHub readiness | PASS (post-audit) | Published publicly at https://github.com/hakeemsallauddin/Azzurro-hotels-review-insights (branch `main`). Local DB, WAL/SHM, browser state and credentials are excluded; a full-history scan found no secrets. |
+| Public deployment | DEPLOYED (post-audit) | Live at https://azzurro-hotels-review-insights.onrender.com — Render free web service running this repository (frontend built during deploy), data in a Turso cloud database migrated from the shipped snapshot. The hosted instance does not collect (AUTO_SCRAPE=false); collection runs locally. |
 
 ## Database and collection findings
 
