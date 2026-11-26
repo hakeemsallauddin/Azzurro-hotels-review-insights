@@ -106,8 +106,8 @@ def now_sydney_iso() -> str:
 
 def cmd_next() -> None:
     rows = query(
-        "SELECT id, mode, started_at, status FROM scraper_runs "
-        "WHERE status IN ('queued','running') ORDER BY id LIMIT 1"
+        "SELECT id, mode, started_at, status, pages, new_reviews, duplicates_skipped "
+        "FROM scraper_runs WHERE status IN ('queued','running') ORDER BY id LIMIT 1"
     )
     print(json.dumps({"run": rows[0] if rows else None}))
 
