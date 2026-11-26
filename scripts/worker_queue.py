@@ -15,6 +15,8 @@ Usage:
   python scripts/worker_queue.py totals <slug>=<total> [<slug>=<total> ...]
       -> refreshes the observed Booking.com listing totals the dashboard
          compares stored reviews against
+  python scripts/worker_queue.py get-totals
+      -> prints the currently stored listing totals as JSON
   python scripts/worker_queue.py progress <run_id> <pages> <new> <dupes>
       -> updates counters on a still-running (full) run
   python scripts/worker_queue.py complete <run_id> <new> <dupes> <pages>
@@ -115,6 +117,11 @@ def cmd_next() -> None:
     print(json.dumps({"run": rows[0] if rows else None}))
 
 
+def cmd_get_totals() -> None:
+    rows = query("SELECT property_slug, booking_total_reviews FROM property_source_state")
+    print(json.dumps({r["property_slug"]: r["booking_total_reviews"] for r in rows}))
+
+
 def cmd_totals(pairs: list) -> None:
     """Update each property's observed Booking.com listing total.
 
@@ -208,6 +215,8 @@ def main() -> None:
     command = args[0]
     if command == "next":
         cmd_next()
+    elif command == "get-totals":
+        cmd_get_totals()
     elif command == "totals":
         cmd_totals(args[1:])
     elif command == "start":
