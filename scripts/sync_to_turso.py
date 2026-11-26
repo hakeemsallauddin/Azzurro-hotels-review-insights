@@ -114,6 +114,21 @@ def identity(slug, name, date):
     return (slug, " ".join((name or "").split("\n")[0].split()).lower(), date)
 
 
+def word_set(*texts) -> set:
+    import re
+
+    words = set()
+    for text in texts:
+        words.update(re.findall(r"[a-z']+", (text or "").lower()))
+    return words
+
+
+def text_overlap(a: set, b: set) -> float:
+    if not a or not b:
+        return 0.0
+    return len(a & b) / max(len(a | b), 1)
+
+
 def review_hash(slug, name, date, title, positive, negative) -> str:
     import hashlib
 
@@ -157,24 +172,40 @@ def main() -> None:
         source_rows = source.execute("SELECT * FROM reviews").fetchall()
 
     hosted_ids = set()
+    # Word sets per (property, date, rating) for the variant check below:
+    # some hosted rows store the reviewer name as a single initial while
+    # the dialog gives the full name, so the identity check alone can miss
+    # that a candidate is the same review in a different name form.
+    hosted_texts = {}
     offset = 0
     while True:
         page = query(
-            "SELECT property_slug, reviewer_name, review_date FROM reviews ORDER BY id LIMIT 1500 OFFSET ?",
+            "SELECT property_slug, reviewer_name, review_date, rating, positive_text, "
+            "negative_text FROM reviews ORDER BY id LIMIT 1500 OFFSET ?",
             (offset,),
         )
         if not page:
             break
-        for slug, name, date in page:
+        for slug, name, date, rating, positive, negative in page:
             hosted_ids.add(identity(slug, name, date))
+            key = (slug, date, rating)
+            hosted_texts.setdefault(key, []).append(word_set(positive, negative))
         offset += len(page)
 
     before = query("SELECT COUNT(*) FROM reviews")[0][0]
-    missing = [
-        row
-        for row in source_rows
-        if identity(row["property_slug"], row["reviewer_name"], row["review_date"]) not in hosted_ids
-    ]
+    missing = []
+    skipped_variants = 0
+    for row in source_rows:
+        if identity(row["property_slug"], row["reviewer_name"], row["review_date"]) in hosted_ids:
+            continue
+        candidates = hosted_texts.get(
+            (row["property_slug"], row["review_date"], row["rating"]), []
+        )
+        words = word_set(row.get("positive_text"), row.get("negative_text"))
+        if any(text_overlap(words, other) > 0.6 for other in candidates):
+            skipped_variants += 1
+            continue
+        missing.append(row)
 
     # Insert with the exact column set and classification the repo's own
     # scraper uses (backend/scraper/run_scraper.py save_review), so synced
@@ -230,6 +261,7 @@ def main() -> None:
             {
                 "inserted": after - before,
                 "already_present": len(source_rows) - len(missing),
+                "skipped_name_variants": skipped_variants,
                 "turso_total": after,
             }
         )
