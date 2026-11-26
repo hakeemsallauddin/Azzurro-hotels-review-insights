@@ -34,7 +34,7 @@ npm install
 npm run dev
 ```
 
-Open <http://127.0.0.1:5173>. The API runs at <http://127.0.0.1:8000> and its interactive documentation is at <http://127.0.0.1:8000/docs>. Keep both terminals open. The default database is `data/reviews.sqlite3`; use `AZZURRO_DB` to change its location. A fresh clone does not contain `reviews.sqlite3` (it is local-only), so the API automatically serves the shipped snapshot `data/reviews-public.sqlite3` until a working `reviews.sqlite3` exists — the dashboard shows the collected reviews immediately after setup, with no extra step. `AUTO_SCRAPE=false` disables automatic background scraping; otherwise the API starts incremental collection and repeats every 12 hours by default (`SCRAPE_INTERVAL_HOURS` changes the interval).
+Open <http://127.0.0.1:5173>. The API runs at <http://127.0.0.1:8000> and its interactive documentation is at <http://127.0.0.1:8000/docs>. Keep both terminals open. The default database is `data/reviews.sqlite3`; use `AZZURRO_DB` to change its location. A fresh clone does not contain `reviews.sqlite3` (it is local-only), so on first run it is seeded automatically by copying the shipped snapshot `data/reviews-public.sqlite3`. From then on there is a single working database: the scraper stores backfilled reviews in `data/reviews.sqlite3` and the dashboard serves that same file, so new reviews appear without any extra step. `AUTO_SCRAPE=false` disables automatic background scraping; otherwise the API starts incremental collection and repeats every 12 hours by default (`SCRAPE_INTERVAL_HOURS` changes the interval).
 
 ### Running the scraper
 

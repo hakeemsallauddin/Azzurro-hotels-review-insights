@@ -1,16 +1,20 @@
 """SQLite schema and connection helpers for the review warehouse."""
 from __future__ import annotations
-import os, sqlite3
+import os, shutil, sqlite3
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 _DEFAULT_DB = ROOT / "data" / "reviews.sqlite3"
 _PUBLIC_DB = ROOT / "data" / "reviews-public.sqlite3"
-# A fresh clone ships only the public snapshot database (reviews-public.sqlite3).
-# Use it until a working reviews.sqlite3 exists, so the dashboard serves the
-# real collected reviews immediately after checkout instead of an empty database.
-_fallback = _PUBLIC_DB if not _DEFAULT_DB.exists() and _PUBLIC_DB.exists() else _DEFAULT_DB
-DB_PATH = Path(os.getenv("AZZURRO_DB", _fallback))
+# One original working database: data/reviews.sqlite3. The API and the scraper
+# both read and write this single file, so backfilled reviews are stored in the
+# same database the dashboard serves. A fresh clone ships only the snapshot
+# (reviews-public.sqlite3); on first run it is copied once to seed the working
+# database, and from then on only the working database is used.
+DB_PATH = Path(os.getenv("AZZURRO_DB", _DEFAULT_DB))
+if "AZZURRO_DB" not in os.environ and not DB_PATH.exists() and _PUBLIC_DB.exists():
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(_PUBLIC_DB, DB_PATH)
 PROPERTIES = {
     "olympic-paddington": ("Olympic Hotel Paddington", "https://www.booking.com/hotel/au/olympic-paddington.html"),
     "venus-potts-point-sydney": ("Potts Point", "https://www.booking.com/hotel/au/venus-potts-point-sydney.html"),

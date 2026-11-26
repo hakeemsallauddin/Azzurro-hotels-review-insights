@@ -8,6 +8,7 @@ from typing import Literal
 from uuid import uuid4
 from fastapi import FastAPI, Query, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from backend.db import connect, init_db, PROPERTIES
 from backend.analytics.classify import TOPICS
@@ -363,3 +364,11 @@ def automation(impact_window:int=Query(30,ge=14,le=60)):
         impact.append(item)
     impact_summary={"window_days":impact_window,"tracked_actions":len(actions),"measured_improved":sum(x["status"]=="improved" for x in impact),"worsened_or_escalated":sum(x["status"]=="worsened" for x in impact),"unchanged":sum(x["status"]=="unchanged" for x in impact),"awaiting_post_data":sum(x["status"]=="awaiting_post_data" for x in impact),"awaiting_completion":sum(x["status"]=="awaiting_action" for x in impact)}
     return {"review_count":total,"coverage":coverage,"collection_health":health_summary,"impact_summary":impact_summary,"impact_actions":impact,"current_window":{"start":current_start.isoformat(),"end":today.isoformat(),**current},"previous_window":{"start":previous_start.isoformat(),"end":previous_end.isoformat(),**previous},"rating_change":round(current["average"]-previous["average"],2) if current["average"] is not None and previous["average"] is not None else None,"negative_rate_change":round(current["negative_rate"]-previous["negative_rate"],1) if current["count"] and previous["count"] else None,"properties":by_property,"recent_runs":history}
+
+
+# Single-service hosting: when the dashboard has been built (frontend/dist),
+# serve it from the API itself so the whole site — UI plus /api — runs on one
+# port and one public URL. Registered last so every /api route above wins.
+_FRONTEND_DIST = Path(__file__).resolve().parents[2] / "frontend" / "dist"
+if _FRONTEND_DIST.is_dir():
+    app.mount("/", StaticFiles(directory=_FRONTEND_DIST, html=True), name="frontend")
