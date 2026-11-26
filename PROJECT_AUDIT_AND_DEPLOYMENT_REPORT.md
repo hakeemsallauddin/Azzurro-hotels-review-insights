@@ -152,6 +152,8 @@ Fixed `backend/scraper/run_scraper.py` by adding `db_scalar()` using the existin
 
 The operator stopped the scraper process tree for run #22. The run was recorded as `interrupted` at 26 Nov 2026 09:53:15 UTC, after 106 pages, 3,830 duplicate skips and 2 new rows. Potts Point was marked interrupted/partial at 106 pages and 1,060 candidate cards. The database now has 9,180 review rows, leaving an 84-row difference against the dated snapshot (2 Paddington, 24 Potts Point, 11 Central Sydney and 47 Darling Harbour). Olympic’s property-state entry retains its finalizer `NameError`; the run history also records both that error and the operator stop. Collected review rows were left intact. A later full run will use the corrected finalizer, but will still need to traverse the accessible pages.
 
+After stopping run #22, incremental run #23 completed at 26 Nov 2026 09:57:28 UTC: 4 pages, 0 new reviews, 40 duplicate reviews, no errors. The database remains at 9,180 rows. This confirms the incremental path completed and deduplicated its latest pages; it does not establish full historical coverage or exercise the full-only backfill finalizer.
+
 ## Suggested next local verification
 
 First identify the process that owns port 8000 from PowerShell. If it is an old Azzurro API instance, stop that specific process and restart the backend from the project root:
