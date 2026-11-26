@@ -1,6 +1,6 @@
 """Resumable Booking.com review collector. Use only where collection is permitted."""
 from __future__ import annotations
-import argparse, asyncio, hashlib, json, logging, os, random, re, time
+import argparse, asyncio, hashlib, json, logging, os, random, re, sys, time
 from datetime import datetime, timezone
 from pathlib import Path
 from playwright.async_api import async_playwright, TimeoutError as PlaywrightTimeout
@@ -308,7 +308,17 @@ async def run(mode="incremental", property_slug=None, max_pages=None):
         async with async_playwright() as p:
             headless=os.getenv("BOOKING_HEADLESS","true").lower() not in {"0","false","no"}
             verification_timeout_seconds=max(30,min(1800,int(os.getenv("BOOKING_VERIFICATION_TIMEOUT_SECONDS","300"))))
-            browser=await p.chromium.launch(headless=headless)
+            try:
+                browser=await p.chromium.launch(headless=headless)
+            except Exception as launch_error:
+                if "Executable doesn't exist" not in str(launch_error): raise
+                # Hosted environments do not always retain the browser build
+                # downloaded at deploy time (the headless shell in particular);
+                # install the required builds into the runtime cache and retry once.
+                LOG.warning("Browser executable missing; installing Playwright browser builds at runtime")
+                install=await asyncio.create_subprocess_exec(sys.executable,"-m","playwright","install","chromium","chromium-headless-shell",stdout=asyncio.subprocess.DEVNULL,stderr=asyncio.subprocess.DEVNULL)
+                await install.wait()
+                browser=await p.chromium.launch(headless=headless)
             state_path=os.getenv("BOOKING_STORAGE_STATE")
             context=await browser.new_context(locale="en-AU", user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0 Safari/537.36",storage_state=state_path if state_path and Path(state_path).exists() else None)
             for slug,(name,url) in targets.items():
