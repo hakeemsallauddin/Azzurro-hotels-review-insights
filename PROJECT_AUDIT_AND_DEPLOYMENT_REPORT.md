@@ -154,6 +154,8 @@ The operator stopped the scraper process tree for run #22. The run was recorded 
 
 After stopping run #22, incremental run #23 completed at 26 Nov 2026 09:57:28 UTC: 4 pages, 0 new reviews, 40 duplicate reviews, no errors. The database remains at 9,180 rows. This confirms the incremental path completed and deduplicated its latest pages; it does not establish full historical coverage or exercise the full-only backfill finalizer.
 
+A subsequent attempt to start a full run from the Codex execution shell recorded run #24 as `completed_with_errors`: the shell could not resolve `www.booking.com` (`net::ERR_NAME_NOT_RESOLVED`) for all four properties, so it visited 0 review pages and added 0 rows. This is a network/DNS limitation in that execution environment, not a Booking.com verification response. It does not change the 9,180 stored review rows. For a full crawl, start the corrected scraper from the user's local API/dashboard where the existing Booking session and network are available.
+
 ## Suggested next local verification
 
 First identify the process that owns port 8000 from PowerShell. If it is an old Azzurro API instance, stop that specific process and restart the backend from the project root:
