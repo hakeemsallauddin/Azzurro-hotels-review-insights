@@ -19,3 +19,4 @@ data/*state*.json
 !data/.gitkeep
 playwright/.cache/
 .playwright/
+.turso-env
