@@ -13,6 +13,10 @@ VERIFICATION_RE = re.compile(r"verify\s+(?:that\s+)?(?:you(?:'|’)re|you are)\s
 
 def now(): return datetime.now(timezone.utc).isoformat(timespec="seconds")
 def slugify(value): return re.sub(r"[^a-z0-9]+", "-", (value or "").lower()).strip("-")
+def db_scalar(query, params=()):
+    with connect() as db:
+        row = db.execute(query, params).fetchone()
+        return row[0] if row else None
 def norm_date(value):
     if not value: return None
     value = str(value).strip()
@@ -120,7 +124,7 @@ async def collect_property(page, slug, name, url, mode, max_pages, counters, run
             fields.update(last_full_run_at=finished,last_full_pages=pages,last_full_cards=observed_cards)
             if status in {"blocked","failed"}: fields["backfill_status"]="blocked_by_access_restriction" if status=="blocked" else "failed"
             elif expected_total is None: fields["backfill_status"]="source_total_unknown"
-            elif status=="completed" and scalar("SELECT COUNT(*) FROM reviews WHERE property_slug=?",(slug,))>=expected_total: fields["backfill_status"]="complete"
+            elif status=="completed" and db_scalar("SELECT COUNT(*) FROM reviews WHERE property_slug=?",(slug,))>=expected_total: fields["backfill_status"]="complete"
             else: fields["backfill_status"]="partially_collected"
         update_property_source_state(slug,**fields)
     async def watch_response(response):

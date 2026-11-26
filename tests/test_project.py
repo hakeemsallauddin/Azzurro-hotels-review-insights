@@ -22,7 +22,7 @@ from backend.analytics.classify import (  # noqa: E402
     classify_praise_topics,
 )
 from backend.api import main as api  # noqa: E402
-from backend.scraper.run_scraper import save_review  # noqa: E402
+from backend.scraper.run_scraper import db_scalar, save_review  # noqa: E402
 
 
 class ProjectTests(unittest.TestCase):
@@ -84,6 +84,9 @@ class ProjectTests(unittest.TestCase):
         self.assertEqual(duplicate, "stored")
         with database.connect() as conn:
             self.assertEqual(conn.execute("SELECT COUNT(*) FROM reviews").fetchone()[0], 1)
+
+    def test_scraper_finalizer_database_scalar_query(self):
+        self.assertEqual(db_scalar("SELECT COUNT(*) FROM reviews"), 0)
 
     def test_api_filters_and_analytics_use_fixture_rows(self):
         today = datetime.now(ZoneInfo("Australia/Sydney")).date()

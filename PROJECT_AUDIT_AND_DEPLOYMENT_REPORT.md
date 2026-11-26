@@ -81,7 +81,7 @@ The tree omits generated `node_modules`, `.venv`, Playwright browser binaries, P
 | Scraper error/verification handling | PARTIAL | Collector records access failures and waits for user-completed verification in visible mode; no CAPTCHA or access control is bypassed. Booking may still restrict collection. |
 | Collection monitor/backfill | PARTIAL | Snapshot coverage and successful-run freshness are separate. Historical per-property backfill metadata was absent; UI now surfaces the actual completed full-run record while the 86-row gap remains partial. |
 | README / setup docs | PASS with local-only deployment notes | README documents architecture, local commands, collection constraints, dedupe, classification, API, tests and hosted persistence requirements. |
-| Automated backend regression tests | PASS | 5 `unittest` tests pass using temporary SQLite databases. They do not touch `data/reviews.sqlite3`. |
+| Automated backend regression tests | PASS | 6 `unittest` tests pass using temporary SQLite databases. They do not touch `data/reviews.sqlite3`. |
 | Python compilation | PASS | `python -m compileall -q backend tests`. |
 | Production frontend build | PASS with warning | `npm run build` succeeds. Vite warns `chart-vendor` is 550.73 kB minified; `react-vendor` is an empty chunk. |
 | Live API verification | BLOCKED | Starting the API on 127.0.0.1:8000 returned Windows error 10048 (port already in use). A request to `/api/health` timed out. I did not stop the existing listener. |
@@ -122,7 +122,7 @@ The latest incremental run is successful; runs #17 and #18 reported Booking veri
 - Modified `backend/api/main.py`: attach the latest successful full-run evidence from run history when per-property legacy metadata is absent.
 - Modified `frontend/src/Automation.jsx`: show the real full-run scope and avoid presenting aggregate all-properties pages as property-level page counts.
 - Modified `README.md`: add isolated test commands and honest local/hosted deployment requirements.
-- Added `tests/test_project.py`: five isolated tests for topic coverage/classification, insert/dedupe behavior, API filtering and analytics, full-run evidence fallback, and legacy schema migration.
+- Added `tests/test_project.py`: six isolated tests for topic coverage/classification, insert/dedupe behavior, API filtering and analytics, full-run evidence fallback, legacy schema migration, and scraper finalizer database queries.
 - Added this report.
 
 Earlier work present in the audited source includes the visible-browser verification wait, full-only listing coverage check, overview takeaways, verification status handling and compact insight styling. Since no Git history existed before initialization, there is no prior diff from which to independently reconstruct the exact earlier edit set.
@@ -143,6 +143,12 @@ A local Git repository was initialized on `main` with a baseline commit containi
 - Not resolved: live browser interaction, viewport testing, frontend console/network verification, action creation/update over HTTP, and full scraper run were not performed in this audit.
 - Not resolved: chart bundle warning and empty React vendor chunk. Build is successful; consider code splitting charts if performance requirements demand it.
 - Not resolved: public deployment. Use persistent storage and a persistent Playwright-capable worker; a serverless ephemeral filesystem will not preserve the SQLite warehouse. A multi-instance deployment should use PostgreSQL and a single scheduled worker.
+
+## Follow-up after the initial audit
+
+During a full run (#22, started 26 Nov 2026 at 09:22:17 UTC), Olympic Hotel Paddington scanned 13 pages/129 candidate cards, then its per-property finalizer failed with `NameError: name 'scalar' is not defined`. This was a code defect after page collection, not a Booking verification response. The collector saves each review as it is read, so a finalizer error does not roll back already committed review rows. Potts Point was still actively scanning when checked. The run process had already imported the old Python module; the fix below applies to new scraper processes, not the running process.
+
+Fixed `backend/scraper/run_scraper.py` by adding `db_scalar()` using the existing SQLite connection helper and calling it from the full-backfill finalizer. Added a regression test for that query. The suite now passes all six tests, and Python compilation passes. Let the active run finish; a subsequent full run is needed to verify the corrected per-property finalizer and update backfill state without this false failure. The current run’s review rows remain saved; the historical failed status is retained in run history.
 
 ## Suggested next local verification
 
