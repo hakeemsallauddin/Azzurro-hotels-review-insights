@@ -12,7 +12,9 @@ _PUBLIC_DB = ROOT / "data" / "reviews-public.sqlite3"
 # (reviews-public.sqlite3); on first run it is copied once to seed the working
 # database, and from then on only the working database is used.
 DB_PATH = Path(os.getenv("AZZURRO_DB", _DEFAULT_DB))
-if not DB_PATH.exists() and _PUBLIC_DB.exists() and DB_PATH != _PUBLIC_DB:
+TURSO_URL = os.getenv("TURSO_DATABASE_URL", "")
+TURSO_TOKEN = os.getenv("TURSO_AUTH_TOKEN", "")
+if not TURSO_URL and not DB_PATH.exists() and _PUBLIC_DB.exists() and DB_PATH != _PUBLIC_DB:
     # First run with a fresh working database (new clone, or a persistent
     # disk mounted elsewhere via AZZURRO_DB): seed it once from the shipped
     # snapshot, then only the working database is used.
@@ -25,7 +27,90 @@ PROPERTIES = {
     "chateau-de-venus": ("Darling Harbour", "https://www.booking.com/hotel/au/chateau-de-venus.html"),
 }
 
+
+# --- Optional hosted database: Turso (libSQL) -------------------------------
+# When TURSO_DATABASE_URL is set, the one original working database lives in
+# Turso instead of a local file (used for free hosting with no persistent
+# disk). The classes below give the libsql client the same surface the rest of
+# the codebase uses from sqlite3: connection.execute/executemany/executescript,
+# cursor.fetchall/fetchone/lastrowid, and rows readable by index or column
+# name (including dict(row)).
+
+class _TursoRow:
+    __slots__ = ("_values", "_columns", "_index")
+    def __init__(self, values, columns):
+        self._values = tuple(values)
+        self._columns = list(columns)
+        self._index = {name: i for i, name in enumerate(self._columns)}
+    def __getitem__(self, key):
+        if isinstance(key, str):
+            return self._values[self._index[key]]
+        return self._values[key]
+    def __iter__(self):
+        return iter(self._values)
+    def __len__(self):
+        return len(self._values)
+    def keys(self):
+        return list(self._columns)
+
+class _TursoCursor:
+    def __init__(self, result=None):
+        if result is not None and result.columns:
+            self._rows = [_TursoRow(row, result.columns) for row in result.rows]
+        elif result is not None:
+            self._rows = [_TursoRow(row, []) for row in result.rows]
+        else:
+            self._rows = []
+        self._pos = 0
+        self.lastrowid = getattr(result, "last_insert_rowid", None) if result is not None else None
+        self.rowcount = getattr(result, "rows_affected", 0) if result is not None else 0
+    def fetchone(self):
+        if self._pos >= len(self._rows):
+            return None
+        row = self._rows[self._pos]
+        self._pos += 1
+        return row
+    def fetchall(self):
+        rows = self._rows[self._pos:]
+        self._pos = len(self._rows)
+        return rows
+    def __iter__(self):
+        return iter(self.fetchall())
+
+class _TursoConnection:
+    def __init__(self, client):
+        self._client = client
+    def execute(self, sql, params=()):
+        return _TursoCursor(self._client.execute(sql, list(params)))
+    def executemany(self, sql, seq_of_params):
+        import libsql_client
+        statements = [libsql_client.Statement(sql, list(params)) for params in seq_of_params]
+        if not statements:
+            return _TursoCursor()
+        results = self._client.batch(statements)
+        return _TursoCursor(results[-1] if results else None)
+    def executescript(self, script):
+        import libsql_client
+        statements = [part.strip() for part in script.split(";") if part.strip()]
+        if statements:
+            self._client.batch([libsql_client.Statement(part) for part in statements])
+        return _TursoCursor()
+    def commit(self):
+        pass
+    def rollback(self):
+        pass
+    def close(self):
+        self._client.close()
+    def __enter__(self):
+        return self
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
 def connect():
+    if TURSO_URL:
+        import libsql_client
+        client = libsql_client.create_client_sync(url=TURSO_URL, auth_token=TURSO_TOKEN)
+        return _TursoConnection(client)
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     db = sqlite3.connect(DB_PATH, timeout=30)
     db.row_factory = sqlite3.Row
