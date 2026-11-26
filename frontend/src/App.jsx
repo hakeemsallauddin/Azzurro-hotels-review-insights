@@ -11,7 +11,7 @@ import {
 import Operations from './Operations.jsx';
 import Automation from './Automation.jsx';
 
-const API = '/api';
+const API = `${(import.meta.env.VITE_API_BASE || '').replace(/\/$/, '')}/api`;
 const PROPERTIES = [
   ['all', 'All properties'],
   ['olympic-paddington', 'Olympic Hotel Paddington'],

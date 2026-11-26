@@ -7,7 +7,7 @@ const DEPARTMENT_FOR_TOPIC = {
   Cleanliness: 'Housekeeping', 'Check-in experience': 'Front desk', 'Staff behaviour': 'Guest relations',
   Noise: 'Maintenance', Facilities: 'Maintenance', Location: 'Management', 'Room condition': 'Maintenance', 'Value for money': 'Management',
 };
-const API = '/api';
+const API = `${(import.meta.env.VITE_API_BASE || '').replace(/\/$/, '')}/api`;
 
 async function send(path, method, body) {
   const response = await fetch(`${API}${path}`, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
