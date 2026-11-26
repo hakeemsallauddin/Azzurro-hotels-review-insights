@@ -12,6 +12,9 @@ Usage:
       -> {"run": {"id": N, "mode": "incremental"|"full", "started_at": ...}} or {"run": null}
   python scripts/worker_queue.py start <run_id>
       -> marks a queued run as 'running' (worker has picked it up)
+  python scripts/worker_queue.py totals <slug>=<total> [<slug>=<total> ...]
+      -> refreshes the observed Booking.com listing totals the dashboard
+         compares stored reviews against
   python scripts/worker_queue.py progress <run_id> <pages> <new> <dupes>
       -> updates counters on a still-running (full) run
   python scripts/worker_queue.py complete <run_id> <new> <dupes> <pages>
@@ -112,6 +115,27 @@ def cmd_next() -> None:
     print(json.dumps({"run": rows[0] if rows else None}))
 
 
+def cmd_totals(pairs: list) -> None:
+    """Update each property's observed Booking.com listing total.
+
+    pairs: list of "slug=total" strings. The dashboard compares stored
+    reviews against these listing totals, so the worker refreshes them
+    from the property pages it observes during every run.
+    """
+    statements = []
+    for pair in pairs:
+        slug, _, total = pair.partition("=")
+        statements.append(
+            (
+                "UPDATE property_source_state SET booking_total_reviews=? WHERE property_slug=?",
+                (int(total), slug),
+            )
+        )
+    if statements:
+        pipeline(statements)
+    print(json.dumps({"updated": [p.split("=")[0] for p in pairs]}))
+
+
 def cmd_start(run_id: int) -> None:
     query("UPDATE scraper_runs SET status='running' WHERE id=? AND status='queued'", (run_id,))
     print(json.dumps({"run_id": run_id, "status": "running"}))
@@ -184,6 +208,8 @@ def main() -> None:
     command = args[0]
     if command == "next":
         cmd_next()
+    elif command == "totals":
+        cmd_totals(args[1:])
     elif command == "start":
         cmd_start(int(args[1]))
     elif command == "progress":
